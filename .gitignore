@@ -1,0 +1,47 @@
+# ---------- Segredos e ambiente ----------
+.env
+.env.*
+!.env.example
+
+# ---------- Python / FastAPI (backend) ----------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# ---------- Node (garantia extra) ----------
+node_modules/
+npm-debug.log*
+
+# ---------- Banco de dados local ----------
+*.sqlite3
+*.db
+pgdata/
+
+# ---------- Modelos / dados gerados ----------
+*.pkl
+*.joblib
+
+# ---------- IDEs ----------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ---------- Sistema operacional ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- Logs e temporários ----------
+*.log
+*.tmp

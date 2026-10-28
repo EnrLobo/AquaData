@@ -1,7 +1,16 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import ProtectedRoute from './components/ProtectedRoute'
+import AthletesPage from './pages/AthletesPage'
+import LoginPage from './pages/LoginPage'
+
 export default function App() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-900">
-      <h1 className="text-3xl font-bold text-sky-400">aquaData</h1>
-    </main>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route path="/atletas" element={<AthletesPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/atletas" replace />} />
+    </Routes>
   )
 }

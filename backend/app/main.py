@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import health
 from app.core.config import settings
 from app.api import auth, health
+from app.api import athletes, auth, health
+
 
 
 app = FastAPI(
@@ -22,3 +24,6 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(athletes.router)

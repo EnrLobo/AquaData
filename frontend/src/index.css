@@ -1,1 +1,86 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --subtle: #f3f8fc;
+  --line: #d9e7f2;
+  --fg: #0b3a57;
+  --muted: #5f7587;
+  --accent: #359fe2;
+  --brand: #1f78b8;
+  --brand-hover: #176399;
+  --brand-fg: #ffffff;
+  --brand-soft: #e6f3fc;
+  --brand-text: #1f78b8;
+  --danger: #b42318;
+  --danger-soft: #fdecea;
+  --success: #067647;
+  --success-soft: #e6f6ec;
+  --canvas: #f3f8fc;
+  --warning: #b54708;
+  --warning-soft: #fef0c7;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #08141f;
+  --surface: #0e1f2e;
+  --subtle: #14293b;
+  --line: #223b50;
+  --fg: #e8f1f8;
+  --muted: #9db3c4;
+  --accent: #359fe2;
+  --brand: #1f78b8;
+  --brand-hover: #2b8bd0;
+  --brand-fg: #ffffff;
+  --brand-soft: #0f2c44;
+  --brand-text: #5db4ec;
+  --danger: #ff7a7a;
+  --danger-soft: #3a1618;
+  --success: #5fd68a;
+  --success-soft: #12301f;
+  --canvas: #08141f;
+  --warning: #fdb022;
+  --warning-soft: #3b2a05;
+}
+
+@theme inline {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-fg: var(--brand-fg);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-text: var(--brand-text);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --animate-fill: fill 6s linear forwards;
+  --color-canvas: var(--canvas);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+}
+
+@keyframes fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+body {
+  @apply bg-bg font-sans text-fg antialiased;
+}

@@ -8,6 +8,9 @@ from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.models import Coach
 
+from sqlalchemy import select
+from app.models import Athlete, Coach
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 DbSession = Annotated[Session, Depends(get_db)]
@@ -32,3 +35,16 @@ def get_current_coach(
 
 
 CurrentCoach = Annotated[Coach, Depends(get_current_coach)]
+
+def get_owned_athlete(athlete_id: int, coach: CurrentCoach, db: DbSession) -> Athlete:
+    athlete = db.scalar(
+        select(Athlete).where(Athlete.id == athlete_id, Athlete.coach_id == coach.id)
+    )
+    if athlete is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Atleta não encontrado"
+        )
+    return athlete
+
+
+OwnedAthlete = Annotated[Athlete, Depends(get_owned_athlete)]

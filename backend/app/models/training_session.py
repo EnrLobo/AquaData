@@ -47,9 +47,8 @@ class TrainingSession(Base):
     distance_m: Mapped[int] = mapped_column(Integer)
     total_time_s: Mapped[Decimal] = mapped_column(Numeric(8, 2))
     stroke_count: Mapped[int] = mapped_column(Integer)
-    # Trecho de nado puro (sem saída e viradas), usado em VN e Cadência
-    swim_distance_m: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
-    swim_time_s: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    swim_distance_m: Mapped[Decimal] = mapped_column(Numeric(6, 2))
+    swim_time_s: Mapped[Decimal] = mapped_column(Numeric(8, 2))
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

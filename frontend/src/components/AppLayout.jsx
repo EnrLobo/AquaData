@@ -8,7 +8,7 @@ import Button from './ui/Button'
 
 const NAV = [
   { to: '/atletas', label: 'Atletas', icon: Users },
-  { label: 'Treinos', icon: Timer, soon: true },
+  { to: '/treinos', label: 'Treinos', icon: Timer },
   { label: 'Desempenho', icon: Activity, soon: true },
   { label: 'Relatórios', icon: FileText, soon: true },
 ]

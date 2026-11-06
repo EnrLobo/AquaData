@@ -1,10 +1,13 @@
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
+from dataclasses import asdict
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 from app.models.training_session import SessionType, Stroke
+from app.services.metrics import compute_metrics
 
 MAX_SPEED_M_S = 3.0  # acima disso é erro de digitação (recordes ficam perto de 2,4 m/s)
 
@@ -16,12 +19,18 @@ class SessionCreate(BaseModel):
     pool_length_m: Literal[25, 50]
     distance_m: int = Field(gt=0, le=10000)
     total_time_s: Decimal = Field(gt=0, le=36000, max_digits=8, decimal_places=2)
-    stroke_count: int = Field(ge=1, le=5000)
-    swim_distance_m: Decimal | None = Field(
-        default=None, gt=0, max_digits=6, decimal_places=2
+    stroke_count: int = Field(
+        ge=1,
+        le=5000,
+        description="Ciclos de braçada (os dois braços = 1 ciclo) contados no trecho de nado puro",
     )
-    swim_time_s: Decimal | None = Field(
-        default=None, gt=0, max_digits=8, decimal_places=2
+    swim_distance_m: Decimal = Field(
+        gt=0, max_digits=6, decimal_places=2,
+        description="Distância do trecho de nado puro (sem saída e viradas)",
+    )
+    swim_time_s: Decimal = Field(
+        gt=0, max_digits=8, decimal_places=2,
+        description="Tempo do trecho de nado puro",
     )
     notes: str | None = Field(default=None, max_length=1000)
 
@@ -47,6 +56,13 @@ class SessionCreate(BaseModel):
                 raise ValueError("Tempo de nado puro incompatível com a distância")
         return self
 
+class SessionMetrics(BaseModel):
+    vm: float | None
+    vn: float | None
+    cb: float | None
+    cn: float | None
+    swim_index: float | None
+    swolf: float | None
 
 class SessionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -60,7 +76,34 @@ class SessionRead(BaseModel):
     distance_m: int
     total_time_s: float
     stroke_count: int
-    swim_distance_m: float | None
-    swim_time_s: float | None
+    swim_distance_m: float
+    swim_time_s: float
     notes: str | None
     created_at: datetime
+
+    @computed_field
+    @property
+    def metrics(self) -> SessionMetrics:
+        return SessionMetrics(
+            **asdict(
+                compute_metrics(
+                    distance_m=self.distance_m,
+                    total_time_s=self.total_time_s,
+                    pool_length_m=self.pool_length_m,
+                    stroke_count=self.stroke_count,
+                    swim_distance_m=self.swim_distance_m,
+                    swim_time_s=self.swim_time_s,
+                )
+            )
+        )
+
+
+class SessionListItem(SessionRead):
+    athlete_name: str = ""
+
+
+class SessionPage(BaseModel):
+    items: list[SessionListItem]
+    total: int
+    limit: int
+    offset: int

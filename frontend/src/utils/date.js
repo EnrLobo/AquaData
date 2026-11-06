@@ -19,3 +19,8 @@ export function todayIso() {
   const day = String(d.getDate()).padStart(2, '0')
   return `${d.getFullYear()}-${month}-${day}`
 }
+
+export function formatShortDate(iso) {
+  const [year, month, day] = iso.split('-')
+  return `${day}/${month}/${year.slice(2)}`
+}

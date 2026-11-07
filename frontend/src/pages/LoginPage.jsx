@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const from = location.state?.from?.pathname ?? '/atletas'
+  const from = location.state?.from?.pathname ?? '/'
   if (coach) return <Navigate to={from} replace />
 
   async function handleSubmit(event) {

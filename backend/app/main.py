@@ -1,12 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import health
-from app.core.config import settings
-from app.api import auth, health
-from app.api import athletes, auth, health
 
-from app.api import athletes, auth, health, sessions
+from app.core.config import settings
+
+from app.api import athletes, auth, dashboard, health, sessions
+
+
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
@@ -27,3 +28,4 @@ app.include_router(auth.router)
 app.include_router(athletes.router)
 app.include_router(sessions.router)
 app.include_router(sessions.coach_router)
+app.include_router(dashboard.router)

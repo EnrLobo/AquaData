@@ -24,3 +24,18 @@ export function formatShortDate(iso) {
   const [year, month, day] = iso.split('-')
   return `${day}/${month}/${year.slice(2)}`
 }
+
+export function daysSince(iso) {
+  const [year, month, day] = iso.split('-').map(Number)
+  const today = new Date()
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const then = new Date(year, month - 1, day)
+  return Math.round((start - then) / 86400000)
+}
+
+export function formatDaysAgo(iso) {
+  const days = daysSince(iso)
+  if (days <= 0) return 'hoje'
+  if (days === 1) return 'ontem'
+  return `há ${days} dias`
+}

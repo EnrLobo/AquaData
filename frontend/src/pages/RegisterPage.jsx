@@ -18,7 +18,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  if (coach) return <Navigate to="/atletas" replace />
+  if (coach) return <Navigate to="/" replace />
 
   async function handleSubmit(event) {
     event.preventDefault()

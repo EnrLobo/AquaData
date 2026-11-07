@@ -1,4 +1,4 @@
-import { Activity, FileText, LogOut, Timer, Users } from 'lucide-react'
+import { Activity, FileText, LayoutDashboard, LogOut, Timer, Users } from 'lucide-react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { initials } from '../utils/text'
@@ -7,6 +7,7 @@ import ThemeToggle from './ThemeToggle'
 import Button from './ui/Button'
 
 const NAV = [
+  { to: '/', label: 'Início', icon: LayoutDashboard, end: true },
   { to: '/atletas', label: 'Atletas', icon: Users },
   { to: '/treinos', label: 'Treinos', icon: Timer },
   { label: 'Desempenho', icon: Activity, soon: true },
@@ -24,7 +25,7 @@ export default function AppLayout() {
     <div className="min-h-screen bg-canvas">
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-line bg-surface lg:flex">
         <div className="px-6 pt-8">
-          <Link to="/atletas" aria-label="aquaData, página inicial">
+          <Link to="/" aria-label="aquaData, página inicial">
             <Logo className="h-9" />
           </Link>
         </div>
@@ -47,7 +48,7 @@ export default function AppLayout() {
                 </span>
               </span>
             ) : (
-              <NavLink key={item.label} to={item.to} className={linkClass}>
+              <NavLink key={item.label} to={item.to} end={item.end} className={linkClass}>
                 <Icon size={18} aria-hidden="true" />
                 {item.label}
               </NavLink>
@@ -77,7 +78,7 @@ export default function AppLayout() {
       <div className="lg:pl-64">
         <header className="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur lg:hidden">
           <div className="flex h-16 items-center justify-between px-4">
-            <Link to="/atletas" aria-label="aquaData, página inicial">
+            <Link to="/" aria-label="aquaData, página inicial">
               <Logo className="h-8" />
             </Link>
             <div className="flex items-center gap-1">
@@ -91,7 +92,7 @@ export default function AppLayout() {
             {NAV.filter((item) => !item.soon).map((item) => {
               const Icon = item.icon
               return (
-                <NavLink key={item.label} to={item.to} className={linkClass}>
+                <NavLink key={item.label} to={item.to} end={item.end} className={linkClass}>
                   <Icon size={18} aria-hidden="true" />
                   {item.label}
                 </NavLink>

@@ -229,7 +229,14 @@ export default function SessionDetailPage() {
           <Info label="Trecho de nado puro">
             {formatDecimal(session.swim_distance_m)} m em {formatTime(session.swim_time_s)}
           </Info>
-          <Info label="Ciclos de braçada">{session.stroke_count}</Info>
+          <Info label="Ciclos no trecho de nado puro">{session.stroke_count}</Info>
+          <Info label="Ciclos na prova completa">
+            {session.total_cycle_count ?? (
+              <span className="font-normal text-muted">
+                Não informado (edite o treino para calcular o SWOLF)
+              </span>
+            )}
+          </Info>
           <Info label="Observações" wide>
             {session.notes || <span className="font-normal text-muted">Sem observações</span>}
           </Info>

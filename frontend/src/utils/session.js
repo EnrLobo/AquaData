@@ -62,7 +62,9 @@ export const METRICS = [
   { key: 'vm', short: 'Vm', label: 'Velocidade média (Vm)', unit: 'm/s', digits: 2, better: 'up',
     description: 'Distância total ÷ tempo total, com saída e viradas' },
   { key: 'swolf', short: 'SWOLF', label: 'SWOLF', unit: '', digits: 1, better: 'down',
-    description: 'Tempo + ciclos, normalizado para o tamanho da piscina' },
+    description: 'Tempo total (s) + braçadas da prova completa (não calculado no medley)' },
+  { key: 'swolf_25', short: 'SWOLF 25 m', label: 'SWOLF a cada 25 m', unit: '', digits: 1, better: 'down',
+    description: 'SWOLF proporcional a 25 m: compara provas e piscinas na mesma escala' },
 ]
 
 export const BETTER_HINT = { up: 'Quanto maior, melhor.', down: 'Quanto menor, melhor.' }

@@ -24,6 +24,11 @@ class SessionCreate(BaseModel):
         le=5000,
         description="Ciclos de braçada (os dois braços = 1 ciclo) contados no trecho de nado puro",
     )
+    total_cycle_count: int = Field(
+        ge=1,
+        le=10000,
+        description="Ciclos de braçada contados na prova completa, com saída e viradas (base do SWOLF)",
+    )
     swim_distance_m: Decimal = Field(
         gt=0, max_digits=6, decimal_places=2,
         description="Distância do trecho de nado puro (sem saída e viradas)",
@@ -42,6 +47,10 @@ class SessionCreate(BaseModel):
             raise ValueError("A distância deve ser múltipla do tamanho da piscina")
         if self.distance_m / float(self.total_time_s) > MAX_SPEED_M_S:
             raise ValueError("Tempo incompatível com a distância informada")
+        if self.total_cycle_count < self.stroke_count:
+            raise ValueError(
+                "Os ciclos da prova completa não podem ser menos que os do trecho de nado puro"
+            )
 
         if (self.swim_distance_m is None) != (self.swim_time_s is None):
             raise ValueError(
@@ -63,6 +72,7 @@ class SessionMetrics(BaseModel):
     cn: float | None
     swim_index: float | None
     swolf: float | None
+    swolf_25: float | None
 
 class SessionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -76,6 +86,7 @@ class SessionRead(BaseModel):
     distance_m: int
     total_time_s: float
     stroke_count: int
+    total_cycle_count: int | None
     swim_distance_m: float
     swim_time_s: float
     notes: str | None
@@ -87,12 +98,14 @@ class SessionRead(BaseModel):
         return SessionMetrics(
             **asdict(
                 compute_metrics(
+                    stroke=self.stroke,
                     distance_m=self.distance_m,
                     total_time_s=self.total_time_s,
                     pool_length_m=self.pool_length_m,
                     stroke_count=self.stroke_count,
                     swim_distance_m=self.swim_distance_m,
                     swim_time_s=self.swim_time_s,
+                    total_cycle_count=self.total_cycle_count,
                 )
             )
         )

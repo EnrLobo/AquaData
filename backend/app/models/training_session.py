@@ -29,6 +29,10 @@ class TrainingSession(Base):
         CheckConstraint("distance_m > 0", name="ck_distance_positive"),
         CheckConstraint("total_time_s > 0", name="ck_total_time_positive"),
         CheckConstraint("stroke_count >= 0", name="ck_stroke_count_nonneg"),
+        CheckConstraint(
+            "total_cycle_count IS NULL OR total_cycle_count >= 1",
+            name="ck_total_cycle_count_positive",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -46,7 +50,9 @@ class TrainingSession(Base):
     pool_length_m: Mapped[int] = mapped_column(Integer)
     distance_m: Mapped[int] = mapped_column(Integer)
     total_time_s: Mapped[Decimal] = mapped_column(Numeric(8, 2))
-    stroke_count: Mapped[int] = mapped_column(Integer)
+    stroke_count: Mapped[int] = mapped_column(Integer)  # ciclos no trecho de nado puro
+    # ciclos na prova completa (base do SWOLF); nulo nos registros anteriores ao campo
+    total_cycle_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     swim_distance_m: Mapped[Decimal] = mapped_column(Numeric(6, 2))
     swim_time_s: Mapped[Decimal] = mapped_column(Numeric(8, 2))
     notes: Mapped[str | None] = mapped_column(Text)

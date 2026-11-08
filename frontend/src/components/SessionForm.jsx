@@ -40,6 +40,7 @@ function initialValues(initial, fixedAthlete) {
     pool: initial ? String(initial.pool_length_m) : '25',
     distance: initial ? String(initial.distance_m) : '',
     totalTime: initial ? formatTime(initial.total_time_s) : '',
+    totalCycles: initial?.total_cycle_count != null ? String(initial.total_cycle_count) : '',
     swimDistance: initial ? String(initial.swim_distance_m).replace('.', ',') : '',
     swimTime: initial ? formatTime(initial.swim_time_s) : '',
     cycles: initial ? String(initial.stroke_count) : '',
@@ -90,6 +91,11 @@ function buildPayload(v, mode, splits) {
   const total = parseTime(v.totalTime)
   if (total === null) return { error: 'Informe o tempo total no formato 1:02,45' }
 
+  const totalCycles = parseInteger(v.totalCycles)
+  if (!totalCycles) {
+    return { error: 'Informe os ciclos de braçada da prova completa (base do SWOLF)' }
+  }
+
   let swimDistance
   let swimTime
   let cycles
@@ -129,6 +135,11 @@ function buildPayload(v, mode, splits) {
       error: `O tempo do trecho (${formatTime(swimTime)}) não pode superar o tempo total (${formatTime(total)})`,
     }
   }
+  if (totalCycles < cycles) {
+    return {
+      error: `Os ciclos da prova completa (${totalCycles}) não podem ser menos que os do trecho de nado puro (${cycles})`,
+    }
+  }
 
   return {
     payload: {
@@ -139,6 +150,7 @@ function buildPayload(v, mode, splits) {
       distance_m: distance,
       total_time_s: total,
       stroke_count: cycles,
+      total_cycle_count: totalCycles,
       swim_distance_m: swimDistance,
       swim_time_s: swimTime,
       notes: v.notes.trim() || null,
@@ -290,6 +302,14 @@ export default function SessionForm({
           hint="Tempo da prova inteira, em minutos:segundos,centésimos. Ex.: 1:02,45 ou 29,38."
           onChange={onText('totalTime')}
         />
+        <TextField
+          id="total-cycles"
+          label="Ciclos na prova completa"
+          inputMode="numeric"
+          value={form.totalCycles}
+          hint="Todos os ciclos de braçada da prova, com saída e viradas. Base do SWOLF."
+          onChange={onText('totalCycles')}
+        />
       </Section>
 
       <section className="space-y-4">
@@ -297,7 +317,7 @@ export default function SessionForm({
           <h2 className="text-base font-semibold">Trecho de nado puro</h2>
           <p className="mt-1 text-sm text-muted">
             Trecho nadado entre as bandeirolas, sem a saída e sem as viradas (5 m de cada borda).
-            É a base de VN, CB, cadência, IN e SWOLF. Os dois braços juntos contam 1 ciclo.
+            É a base de VN, CB, cadência e IN. Os dois braços juntos contam 1 ciclo.
           </p>
         </div>
 

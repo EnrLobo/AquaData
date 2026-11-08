@@ -1,4 +1,4 @@
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import MetricCard from '../components/MetricCard'
@@ -204,11 +204,20 @@ export default function SessionDetailPage() {
           />
         </div>
         <MetricChart data={chartData} metric={metric} currentIndex={currentIndex} />
-        <p className="mt-3 text-xs text-muted">
-          {series.length < 2
-            ? `Registre mais treinos de ${STROKE_LABEL[session.stroke]} para acompanhar a evolução.`
-            : 'O ponto com contorno destacado é o treino exibido nesta página.'}
-        </p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted">
+            {series.length < 2
+              ? `Registre mais treinos de ${STROKE_LABEL[session.stroke]} para acompanhar a evolução.`
+              : 'O ponto com contorno destacado é o treino exibido nesta página.'}
+          </p>
+          <Link
+            to={`/desempenho/${athleteId}?nado=${session.stroke}&prova=${session.distance_m}-${session.pool_length_m}`}
+            className="inline-flex items-center gap-1 text-sm font-medium text-brand-text hover:underline"
+          >
+            Ver desempenho completo
+            <ArrowRight size={14} aria-hidden="true" />
+          </Link>
+        </div>
         <MetricLegend metric={metric} />
       </section>
 

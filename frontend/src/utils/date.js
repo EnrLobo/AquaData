@@ -13,11 +13,21 @@ export function calcAge(iso) {
   return age
 }
 
-export function todayIso() {
-  const d = new Date()
+function toIso(d) {
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${d.getFullYear()}-${month}-${day}`
+}
+
+export function todayIso() {
+  return toIso(new Date())
+}
+
+// data de N dias atrás (no fuso do navegador), no formato AAAA-MM-DD
+export function isoDaysAgo(days) {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  return toIso(d)
 }
 
 export function formatShortDate(iso) {

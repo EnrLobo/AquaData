@@ -10,7 +10,7 @@ const NAV = [
   { to: '/', label: 'Início', icon: LayoutDashboard, end: true },
   { to: '/atletas', label: 'Atletas', icon: Users },
   { to: '/treinos', label: 'Treinos', icon: Timer },
-  { label: 'Desempenho', icon: Activity, soon: true },
+  { to: '/desempenho', label: 'Desempenho', icon: Activity },
   { label: 'Relatórios', icon: FileText, soon: true },
 ]
 

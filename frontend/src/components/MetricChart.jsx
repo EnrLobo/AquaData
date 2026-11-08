@@ -3,6 +3,7 @@ import {
   Line,
   LineChart,
   ReferenceDot,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,6 +18,7 @@ function ChartTooltip({ active, payload, metric }) {
   return (
     <div className="rounded-xl border border-line bg-surface px-3 py-2 text-sm shadow-md">
       <p className="text-xs text-muted">{point.label}</p>
+      {point.detail && <p className="text-xs text-muted">{point.detail}</p>}
       <p className="font-semibold">
         {formatDecimal(point.value, metric.digits)} {metric.unit}
       </p>
@@ -24,14 +26,17 @@ function ChartTooltip({ active, payload, metric }) {
   )
 }
 
-export default function MetricChart({ data, metric, currentIndex }) {
-  const current = data[currentIndex]
+// trend: { start, end, first_index, last_index } da regressão linear (opcional)
+export default function MetricChart({ data, metric, currentIndex = -1, trend = null }) {
+  const current = currentIndex >= 0 ? data[currentIndex] : undefined
   const tick = { fill: 'var(--muted)', fontSize: 12 }
 
   return (
     <div
       role="img"
-      aria-label={`Gráfico de ${metric.label} em ${data.length} treinos`}
+      aria-label={`Gráfico de ${metric.label} em ${data.length} treinos${
+        trend ? ', com linha de tendência' : ''
+      }`}
       className="h-72 w-full"
     >
       <ResponsiveContainer width="100%" height="100%">
@@ -39,6 +44,9 @@ export default function MetricChart({ data, metric, currentIndex }) {
           <CartesianGrid stroke="var(--line)" vertical={false} />
           <XAxis
             dataKey="x"
+            type="number"
+            domain={[0, Math.max(data.length - 1, 0)]}
+            allowDecimals={false}
             tickFormatter={(x) => data[x]?.label ?? ''}
             tick={tick}
             stroke="var(--line)"
@@ -54,6 +62,18 @@ export default function MetricChart({ data, metric, currentIndex }) {
             axisLine={false}
           />
           <Tooltip content={<ChartTooltip metric={metric} />} />
+          {trend && (
+            <ReferenceLine
+              segment={[
+                { x: trend.first_index, y: trend.start },
+                { x: trend.last_index, y: trend.end },
+              ]}
+              stroke="var(--accent)"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              ifOverflow="extendDomain"
+            />
+          )}
           <Line
             type="monotone"
             dataKey="value"

@@ -1,4 +1,4 @@
-import { Pencil, UserCheck, UserX } from 'lucide-react'
+import { Activity, Pencil, UserCheck, UserX } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { initials } from '../utils/text'
 import { calcAge } from '../utils/date'
@@ -60,6 +60,14 @@ export default function AthleteCard({ athlete, busy, onToggleActive }) {
       <footer className="mt-5 flex items-center justify-between gap-2 text-sm">
         <span className="text-muted">Sem treinos registrados</span>
         <div className="flex gap-1">
+          <Link
+            to={`/desempenho/${athlete.id}`}
+            className={buttonClasses('ghost', 'icon')}
+            aria-label={`Ver desempenho de ${athlete.name}`}
+            title="Ver desempenho"
+          >
+            <Activity size={16} aria-hidden="true" />
+          </Link>
           <Link
             to={`/atletas/${athlete.id}/editar`}
             className={buttonClasses('ghost', 'icon')}

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import MetricCard from '../components/MetricCard'
 import MetricChart from '../components/MetricChart'
+import MetricLegend from '../components/MetricLegend'
 import PageHeader from '../components/PageHeader'
 import Alert from '../components/ui/Alert'
 import Button from '../components/ui/Button'
@@ -13,7 +14,6 @@ import { getAthlete } from '../services/athletes'
 import { deleteSession, getSession, listAthleteSessions } from '../services/sessions'
 import { formatDate, formatShortDate } from '../utils/date'
 import {
-  BETTER_HINT,
   METRICS,
   SESSION_TYPE_LABEL,
   STROKE_LABEL,
@@ -22,7 +22,7 @@ import {
   formatTime,
 } from '../utils/session'
 
-const CHIP_OPTIONS = METRICS.map((m) => ({ value: m.key, label: m.short }))
+const CHIP_OPTIONS = METRICS.map((m) => ({ value: m.key, label: m.short, title: m.label }))
 
 function Info({ label, children, wide = false }) {
   return (
@@ -193,8 +193,7 @@ export default function SessionDetailPage() {
               Evolução
             </h2>
             <p className="text-sm text-muted">
-              Treinos de {STROKE_LABEL[session.stroke]} de {athlete.name}
-              {metric.better ? ` · ${BETTER_HINT[metric.better]}` : ''}
+              {metric.label} nos treinos de {STROKE_LABEL[session.stroke]} de {athlete.name}
             </p>
           </div>
           <ChipGroup
@@ -210,6 +209,7 @@ export default function SessionDetailPage() {
             ? `Registre mais treinos de ${STROKE_LABEL[session.stroke]} para acompanhar a evolução.`
             : 'O ponto com contorno destacado é o treino exibido nesta página.'}
         </p>
+        <MetricLegend metric={metric} />
       </section>
 
       <section

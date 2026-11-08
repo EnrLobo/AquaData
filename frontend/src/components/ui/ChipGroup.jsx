@@ -8,6 +8,7 @@ export default function ChipGroup({ options, value, onChange, ariaLabel }) {
             key={option.value}
             type="button"
             aria-pressed={selected}
+            title={option.title}
             onClick={() => onChange(option.value)}
             className={`h-11 rounded-xl border px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-text ${
               selected

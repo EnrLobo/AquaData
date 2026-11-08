@@ -144,9 +144,21 @@ export default function SessionsPage() {
                   <th scope="col" className="px-5 py-3 font-medium">Data</th>
                   <th scope="col" className="px-5 py-3 font-medium">Prova</th>
                   <th scope="col" className="px-5 py-3 font-medium">Tempo</th>
-                  <th scope="col" className="px-5 py-3 font-medium">SWOLF</th>
-                  <th scope="col" className="px-5 py-3 font-medium">CB</th>
-                  <th scope="col" className="px-5 py-3 font-medium">VN</th>
+                  <th scope="col" className="px-5 py-3 font-medium">
+                    <abbr title="Tempo total + braçadas da prova completa" className="cursor-help">
+                      SWOLF
+                    </abbr>
+                  </th>
+                  <th scope="col" className="px-5 py-3 font-medium">
+                    <abbr title="Comprimento de braçada" className="cursor-help">
+                      CB
+                    </abbr>
+                  </th>
+                  <th scope="col" className="px-5 py-3 font-medium">
+                    <abbr title="Velocidade de nado" className="cursor-help">
+                      VN
+                    </abbr>
+                  </th>
                   <th scope="col" className="px-5 py-3">
                     <span className="sr-only">Ações</span>
                   </th>

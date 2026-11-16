@@ -1,5 +1,5 @@
 from dataclasses import fields
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter
 from sqlalchemy import select
@@ -38,32 +38,16 @@ def _r(value: float | None, digits: int = 2) -> float | None:
     return None if value is None else round(value, digits)
 
 
-def mean_interval_days(dates: list[date]) -> int | None:
-    """Intervalo médio, em dias, entre o primeiro e o último registro (mínimo de 1 dia)."""
-    if len(dates) < 2:
-        return None
-    span = (dates[-1] - dates[0]).days
-    return max(1, round(span / (len(dates) - 1)))
-
-
-def _path_read(
-    path: list[PathPoint], dates: list[date], interval: int | None, digits: int
-) -> list[PathPointRead]:
-    """Converte a reta do serviço, com a data real (histórico) ou estimada (futuro)."""
+def _path_read(path: list[PathPoint], dates: list[date], digits: int) -> list[PathPointRead]:
+    """Converte a reta do serviço; registros futuros não têm data (o modelo usa a ordem)."""
     n = len(dates)
     result = []
     for point in path:
         future = point.order > n
-        if future:
-            session_date = (
-                dates[-1] + timedelta(days=interval * (point.order - n)) if interval else None
-            )
-        else:
-            session_date = dates[point.order - 1]
         result.append(
             PathPointRead(
                 order=point.order,
-                session_date=session_date,
+                session_date=None if future else dates[point.order - 1],
                 estimated=future,
                 training_s=_r(point.training_s, digits),
                 competition_s=_r(point.competition_s, digits),
@@ -83,7 +67,7 @@ def _model_read(model: FittedModel) -> PredictionModelRead:
 
 
 def metric_series(
-    sessions: list[TrainingSession], dates: list[date], interval: int | None
+    sessions: list[TrainingSession], dates: list[date]
 ) -> dict[str, MetricSeriesRead]:
     """Ajusta a reta em cada métrica calculada da prova e projeta os próximos registros."""
     computed = [SessionRead.model_validate(s).metrics.model_dump() for s in sessions]
@@ -105,7 +89,7 @@ def metric_series(
             n_records=len(records),
             values=values,
             model=_model_read(projection.model),
-            path=_path_read(projection.path, dates, interval, digits=3),
+            path=_path_read(projection.path, dates, digits=3),
         )
     return series
 
@@ -123,7 +107,7 @@ def get_prediction(
     Usa todo o histórico da prova (mesmo nado, distância e piscina), em ordem
     cronológica, e devolve também a avaliação do modelo (divisão temporal
     treino/teste), a reta ajustada no histórico e a projeção para os registros
-    seguintes, com datas estimadas pelo intervalo médio entre os registros.
+    seguintes (identificados pela ordem, sem data).
     As métricas calculadas recebem a mesma reta e projeção (metric_series).
     """
     sessions = db.scalars(
@@ -138,7 +122,6 @@ def get_prediction(
     ).all()
 
     dates = [s.session_date for s in sessions]
-    interval = mean_interval_days(dates)
 
     base = dict(
         athlete_id=athlete.id,
@@ -167,8 +150,7 @@ def get_prediction(
             )
             for i, s in enumerate(sessions)
         ],
-        interval_days=interval,
-        metric_series=metric_series(sessions, dates, interval),
+        metric_series=metric_series(sessions, dates),
     )
 
     records = [
@@ -227,5 +209,5 @@ def get_prediction(
             rmse_s=round(ev.rmse_s, 2),
             points=points,
         ),
-        path=_path_read(result.path, dates, interval, digits=2),
+        path=_path_read(result.path, dates, digits=2),
     )

@@ -45,10 +45,10 @@ class HistoryPoint(BaseModel):
 
 
 class PathPointRead(BaseModel):
-    """Reta do modelo numa ordem do histórico (data real) ou futura (data estimada)."""
+    """Reta do modelo numa ordem do histórico (com a data real) ou futura (sem data)."""
 
     order: int
-    session_date: date | None  # real no histórico; estimada nos registros futuros
+    session_date: date | None  # data real no histórico; None nos registros futuros
     estimated: bool  # True nos registros futuros
     training_s: float | None
     competition_s: float | None
@@ -88,5 +88,4 @@ class PredictionRead(BaseModel):
     evaluation: PredictionEvaluationRead | None
     history: list[HistoryPoint]  # todos os registros da prova (também sem predição)
     path: list[PathPointRead]  # reta no histórico + projeção futura (vazio sem predição)
-    interval_days: int | None  # intervalo médio entre registros, usado nas datas estimadas
     metric_series: dict[str, MetricSeriesRead]  # vm, vn, cb, cn, swim_index, swolf, swolf_25

@@ -214,8 +214,8 @@ export default function PerformancePage() {
       }))
       const future = path.slice(history.length).map((p, k) => ({
         x: history.length + k,
-        label: p.session_date ? `~${formatShortDate(p.session_date)}` : `+${k + 1}`,
-        detail: `Previsão do ${history.length + k + 1}º registro (data estimada)`,
+        label: `Próx. ${k + 1}`,
+        detail: `Previsão do ${history.length + k + 1}º registro`,
         value: null,
         model: p.training_s,
         modelComp: p.competition_s,
@@ -241,7 +241,6 @@ export default function PerformancePage() {
   }, [forecast])
 
   const futureSteps = forecast ? forecast.path.length - forecast.history.length : 0
-  const intervalDays = predictionData?.interval_days ?? null
   const minRecords = predictionData?.min_records ?? 6
 
   const summary = data?.summary?.[metricKey] ?? null
@@ -249,13 +248,7 @@ export default function PerformancePage() {
   // texto explicativo abaixo do gráfico
   let chartNote
   if (forecast) {
-    chartNote = `Linhas tracejadas: reta da Regressão Linear (todo o histórico da prova), prolongada para os próximos ${futureSteps} registros na área "Previsão".${
-      intervalDays
-        ? ` Datas futuras estimadas pelo intervalo médio de ${intervalDays} ${
-            intervalDays === 1 ? 'dia' : 'dias'
-          } entre os registros.`
-        : ''
-    } Quanto mais distante, maior a incerteza.`
+    chartNote = `Linhas tracejadas: reta da Regressão Linear (todo o histórico da prova), prolongada para os próximos ${futureSteps} registros na área "Previsão" (sem data: o modelo usa a ordem dos registros). Quanto mais distante, maior a incerteza.`
   } else {
     const parts = []
     if (!predictionKey) {

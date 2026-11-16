@@ -1,12 +1,18 @@
+from datetime import date
+
 import pytest
 
 from app.services.prediction import (
     FUTURE_STEPS,
     MIN_RECORDS,
+    STABLE_BAND_PCT,
     InsufficientDataError,
     Record,
+    TrendStatus,
+    classify_trend,
     evaluate,
     fit,
+    pick_main_event,
     predict_next,
     project_series,
     split_sizes,
@@ -132,3 +138,43 @@ def test_projecao_de_metrica_exige_o_minimo_de_registros():
     registros = [Record(value=1.5, is_competition=False) for _ in range(5)]
     with pytest.raises(InsufficientDataError):
         project_series(registros, [1, 2, 3, 4, 5], last_order=7)
+
+
+def test_selo_pela_variacao_percentual_por_registro():
+    assert STABLE_BAND_PCT == 0.2
+    # último tempo de 30 s: a faixa de estável vai de −0,06 s a +0,06 s por registro
+    pct, selo = classify_trend(-0.3, 30)
+    assert pct == pytest.approx(-1.0)
+    assert selo is TrendStatus.IMPROVING
+    assert classify_trend(0.3, 30)[1] is TrendStatus.ATTENTION
+    assert classify_trend(0.03, 30)[1] is TrendStatus.STABLE
+    assert classify_trend(-0.07, 30)[1] is TrendStatus.IMPROVING  # logo fora da faixa
+    assert classify_trend(0.05, 30)[1] is TrendStatus.STABLE  # logo dentro da faixa
+
+
+def test_selo_usa_a_mesma_faixa_em_provas_longas():
+    # −0,5 s por registro: melhora em 30 s (−1,67%), estável em 300 s (−0,17%)
+    assert classify_trend(-0.5, 30)[1] is TrendStatus.IMPROVING
+    assert classify_trend(-0.5, 300)[1] is TrendStatus.STABLE
+
+
+def test_prova_principal_e_a_mais_registrada_com_previsao():
+    provas = {
+        ("freestyle", 50, 25): (8, date(2026, 11, 1)),
+        ("freestyle", 100, 25): (10, date(2026, 10, 1)),
+        ("breaststroke", 50, 25): (5, date(2026, 11, 10)),  # abaixo do mínimo
+    }
+    assert pick_main_event(provas) == ("freestyle", 100, 25)
+
+
+def test_prova_principal_desempata_pelo_registro_mais_recente():
+    provas = {
+        ("freestyle", 50, 25): (6, date(2026, 11, 1)),
+        ("backstroke", 50, 25): (6, date(2026, 11, 12)),
+    }
+    assert pick_main_event(provas) == ("backstroke", 50, 25)
+
+
+def test_sem_prova_com_minimo_nao_ha_prova_principal():
+    assert pick_main_event({("freestyle", 50, 25): (5, date(2026, 11, 1))}) is None
+    assert pick_main_event({}) is None

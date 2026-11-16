@@ -1,6 +1,6 @@
 import { LogIn } from 'lucide-react'
 import { useState } from 'react'
-import { Link, Navigate, useLocation } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import AuthShell from '../components/AuthShell'
 import Logo from '../components/Logo'
 import Alert from '../components/ui/Alert'
@@ -11,14 +11,13 @@ import { useAuth } from '../hooks/useAuth'
 
 export default function LoginPage() {
   const { coach, signIn } = useAuth()
-  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const from = location.state?.from?.pathname ?? '/'
-  if (coach) return <Navigate to={from} replace />
+  // depois do login, sempre abre o painel inicial (Início)
+  if (coach) return <Navigate to="/" replace />
 
   async function handleSubmit(event) {
     event.preventDefault()

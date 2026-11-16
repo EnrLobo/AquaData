@@ -1,5 +1,7 @@
 import math
 from dataclasses import dataclass
+from datetime import date
+from enum import StrEnum
 
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -15,6 +17,7 @@ MIN_TEST = 2  # registros mínimos no conjunto de teste
 MIN_RECORDS = MIN_TRAIN + MIN_TEST  # 6 registros na prova para haver predição
 TEST_FRACTION = 0.2  # últimos 20% vão para o teste
 FUTURE_STEPS = 3  # registros futuros projetados no gráfico (decisão da equipe)
+STABLE_BAND_PCT = 0.2  # |variação prevista por registro| abaixo disso (% do último tempo) = estável
 
 
 class InsufficientDataError(ValueError):
@@ -237,3 +240,41 @@ def project_series(
     model, fitted = fit(records, orders=orders)
     path = [_path_point(model, fitted, order) for order in range(1, last_order + steps + 1)]
     return SeriesProjection(model=fitted, path=path)
+
+
+class TrendStatus(StrEnum):
+    """Selo do painel, pela inclinação da reta do tempo (menor tempo = melhor)."""
+
+    IMPROVING = "improving"  # tempo caindo
+    STABLE = "stable"  # variação dentro da faixa de estabilidade
+    ATTENTION = "attention"  # tempo subindo
+
+
+def classify_trend(coef_order: float, reference_s: float) -> tuple[float, TrendStatus]:
+    """Classifica a tendência do tempo pela variação prevista a cada registro (b1).
+
+    A variação é expressa em % do tempo de referência (o último registro), para
+    que provas de durações diferentes usem a mesma faixa de estabilidade.
+    Devolve (variação em % por registro, selo).
+    """
+    if reference_s <= 0:
+        raise ValueError("O tempo de referência precisa ser positivo.")
+    change_pct = coef_order / reference_s * 100
+    if change_pct <= -STABLE_BAND_PCT:
+        return change_pct, TrendStatus.IMPROVING
+    if change_pct >= STABLE_BAND_PCT:
+        return change_pct, TrendStatus.ATTENTION
+    return change_pct, TrendStatus.STABLE
+
+
+def pick_main_event(events: dict[tuple, tuple[int, date]]) -> tuple | None:
+    """Escolhe a prova principal do atleta para o painel.
+
+    events: prova (nado, distância, piscina) → (quantidade de registros, data do último).
+    Vale a prova com mais registros entre as que têm o mínimo para a previsão;
+    no empate, a de registro mais recente. Sem prova elegível, devolve None.
+    """
+    eligible = {key: value for key, value in events.items() if value[0] >= MIN_RECORDS}
+    if not eligible:
+        return None
+    return max(eligible, key=lambda key: eligible[key])

@@ -1,10 +1,11 @@
-import { ArrowRight, Info, Plus } from 'lucide-react'
+import { ArrowRight, Info, Plus, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import MetricChart from '../components/MetricChart'
 import MetricLegend from '../components/MetricLegend'
 import MetricTrendCard from '../components/MetricTrendCard'
 import PageHeader from '../components/PageHeader'
+import PredictionPanel from '../components/PredictionPanel'
 import Alert from '../components/ui/Alert'
 import { buttonClasses } from '../components/ui/button-styles'
 import ChipGroup from '../components/ui/ChipGroup'
@@ -14,10 +15,12 @@ import Select from '../components/ui/Select'
 import Spinner from '../components/ui/Spinner'
 import { listAthletes } from '../services/athletes'
 import { getPerformance } from '../services/performance'
+import { getPrediction } from '../services/prediction'
 import { formatDate, formatShortDate, isoDaysAgo } from '../utils/date'
 import {
   METRICS,
   SESSION_TYPE_LABEL,
+  TIME_METRIC,
   STROKE_LABEL,
   formatDecimal,
   formatRace,
@@ -40,6 +43,23 @@ const PERIOD_OPTIONS = [
 ]
 
 const RECENT_ROWS = 10
+
+// opções do gráfico: o tempo da prova (com a previsão) e as métricas calculadas
+const CHART_OPTIONS = [TIME_METRIC, ...METRICS].map((m) => ({
+  value: m.key,
+  label: m.short,
+  title: m.label,
+}))
+
+const PREDICTION_LINES = {
+  training: { dataKey: 'model', name: 'Previsão para treino', color: 'var(--accent)', dashed: true },
+  competition: {
+    dataKey: 'modelComp',
+    name: 'Previsão para competição',
+    color: 'var(--warning)',
+    dashed: true,
+  },
+}
 
 // Lê os filtros da URL e descarta valores inválidos (link editado à mão, por exemplo)
 function readFilters(params) {
@@ -67,7 +87,8 @@ export default function PerformancePage() {
 
   const [athletes, setAthletes] = useState({ loaded: false, items: [], error: '' })
   const [result, setResult] = useState({ key: null, data: null, error: '' })
-  const [metricKey, setMetricKey] = useState('vn')
+  const [prediction, setPrediction] = useState({ key: null, data: null, error: '' })
+  const [metricKey, setMetricKey] = useState(TIME_METRIC.key)
 
   const loading = result.key !== key
 
@@ -109,7 +130,8 @@ export default function PerformancePage() {
   }, [athleteId, key])
 
   const data = result.data
-  const metric = METRICS.find((m) => m.key === metricKey)
+  const isTime = metricKey === TIME_METRIC.key
+  const metric = isTime ? TIME_METRIC : METRICS.find((m) => m.key === metricKey)
 
   const strokeOptions = useMemo(() => {
     if (!data) return []
@@ -137,18 +159,128 @@ export default function PerformancePage() {
     [strokeEvents],
   )
 
-  const chartData = useMemo(
-    () =>
-      (data?.sessions ?? []).map((s, index) => ({
-        x: index,
-        label: formatShortDate(s.session_date),
-        detail: `${formatRace(s)} · piscina de ${s.pool_length_m} m · ${
-          SESSION_TYPE_LABEL[s.session_type]
-        }`,
-        value: s.metrics?.[metricKey] ?? null,
-      })),
-    [data, metricKey],
-  )
+  const selectedEvent = strokeEvents.find((e) => eventKey(e) === filters.event)
+  // a previsão precisa de uma prova só: a escolhida ou, se o nado tiver uma única, essa
+  const predictionEvent = selectedEvent ?? (strokeEvents.length === 1 ? strokeEvents[0] : null)
+  const predictionKey =
+    data && predictionEvent
+      ? [athleteId, data.stroke, predictionEvent.distance_m, predictionEvent.pool_length_m].join('|')
+      : null
+
+  useEffect(() => {
+    if (!predictionKey) return undefined
+    let cancelled = false
+    const [id, stroke, distance, pool] = predictionKey.split('|')
+    getPrediction(id, { stroke, distance, pool })
+      .then((value) => {
+        if (!cancelled) setPrediction({ key: predictionKey, data: value, error: '' })
+      })
+      .catch((err) => {
+        if (!cancelled) setPrediction({ key: predictionKey, data: null, error: err.message })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [predictionKey])
+
+  const predictionLoading = predictionKey != null && prediction.key !== predictionKey
+  const predictionData = !predictionLoading && predictionKey ? prediction.data : null
+  const metricSeries = isTime ? null : (predictionData?.metric_series?.[metricKey] ?? null)
+
+  // Com previsão disponível (tempo ou métrica), o gráfico usa todo o histórico da prova e a
+  // reta do modelo; sem ela, volta aos registros filtrados (com a linha de tendência).
+  const forecast = useMemo(() => {
+    const history = predictionData?.history ?? []
+    if (!history.length) return null
+    if (isTime) {
+      if (!predictionData.path?.length) return null
+      return { history, values: history.map((h) => h.time_s), path: predictionData.path }
+    }
+    if (!metricSeries?.path?.length) return null
+    return { history, values: metricSeries.values, path: metricSeries.path }
+  }, [predictionData, isTime, metricSeries])
+
+  const chartData = useMemo(() => {
+    if (forecast) {
+      const { history, values, path } = forecast
+      const past = history.map((h, i) => ({
+        x: i,
+        label: formatShortDate(h.session_date),
+        detail: SESSION_TYPE_LABEL[h.session_type],
+        value: values[i] ?? null,
+        isCompetition: h.session_type === 'competition',
+        model: path[i]?.training_s ?? null,
+        modelComp: path[i]?.competition_s ?? null,
+      }))
+      const future = path.slice(history.length).map((p, k) => ({
+        x: history.length + k,
+        label: p.session_date ? `~${formatShortDate(p.session_date)}` : `+${k + 1}`,
+        detail: `Previsão do ${history.length + k + 1}º registro (data estimada)`,
+        value: null,
+        model: p.training_s,
+        modelComp: p.competition_s,
+      }))
+      return [...past, ...future]
+    }
+    return (data?.sessions ?? []).map((s, index) => ({
+      x: index,
+      label: formatShortDate(s.session_date),
+      detail: `${formatRace(s)} · piscina de ${s.pool_length_m} m · ${
+        SESSION_TYPE_LABEL[s.session_type]
+      }`,
+      value: isTime ? s.total_time_s : (s.metrics?.[metricKey] ?? null),
+      isCompetition: isTime && s.session_type === 'competition',
+    }))
+  }, [data, metricKey, isTime, forecast])
+
+  const chartLines = useMemo(() => {
+    if (!forecast) return []
+    const lines = [PREDICTION_LINES.training]
+    if (forecast.path.some((p) => p.competition_s != null)) lines.push(PREDICTION_LINES.competition)
+    return lines
+  }, [forecast])
+
+  const futureSteps = forecast ? forecast.path.length - forecast.history.length : 0
+  const intervalDays = predictionData?.interval_days ?? null
+  const minRecords = predictionData?.min_records ?? 6
+
+  const summary = data?.summary?.[metricKey] ?? null
+
+  // texto explicativo abaixo do gráfico
+  let chartNote
+  if (forecast) {
+    chartNote = `Linhas tracejadas: reta da Regressão Linear (todo o histórico da prova), prolongada para os próximos ${futureSteps} registros na área "Previsão".${
+      intervalDays
+        ? ` Datas futuras estimadas pelo intervalo médio de ${intervalDays} ${
+            intervalDays === 1 ? 'dia' : 'dias'
+          } entre os registros.`
+        : ''
+    } Quanto mais distante, maior a incerteza.`
+  } else {
+    const parts = []
+    if (!predictionKey) {
+      parts.push('Escolha uma prova no filtro acima para ver a previsão no gráfico.')
+    } else if (predictionLoading) {
+      parts.push('Carregando a previsão…')
+    } else if (metricSeries && !metricSeries.available) {
+      parts.push(
+        `A previsão de ${metric.short} aparece a partir de ${minRecords} registros desta prova com o valor calculado (há ${metricSeries.n_records}).`,
+      )
+    } else if (predictionData) {
+      parts.push(`A previsão aparece a partir de ${minRecords} registros desta prova.`)
+    }
+    if (!isTime) {
+      parts.push(
+        summary?.trend
+          ? 'Linha tracejada: tendência do período (regressão linear pelos mínimos quadrados).'
+          : 'A linha de tendência aparece a partir de 3 treinos com esses filtros.',
+      )
+    }
+    if (data?.truncated) {
+      parts.push(`Exibindo os ${data.sessions.length} treinos mais recentes de ${data.total}.`)
+    }
+    chartNote = parts.join(' ')
+  }
 
   const recent = useMemo(
     () => [...(data?.sessions ?? [])].reverse().slice(0, RECENT_ROWS),
@@ -193,9 +325,7 @@ export default function PerformancePage() {
   }))
   const athleteInList = athleteOptions.some((o) => o.value === athleteId)
 
-  const summary = data?.summary?.[metricKey] ?? null
   const mixedDistances = data && !filters.event && strokeEvents.length > 1
-  const selectedEvent = strokeEvents.find((e) => eventKey(e) === filters.event)
 
   return (
     <>
@@ -331,29 +461,49 @@ export default function PerformancePage() {
                       Evolução: {metric.label}
                     </h2>
                     <p className="text-sm text-muted">
-                      {data.sessions.length}{' '}
-                      {data.sessions.length === 1 ? 'treino' : 'treinos'} de{' '}
-                      {STROKE_LABEL[data.stroke]}
-                      {selectedEvent ? ` · ${eventLabel(selectedEvent)}` : ''}
+                      {forecast
+                        ? `${forecast.history.length} registros de ${STROKE_LABEL[data.stroke]} · ${eventLabel(
+                            predictionEvent,
+                          )} (todo o histórico da prova)`
+                        : `${data.sessions.length} ${
+                            data.sessions.length === 1 ? 'treino' : 'treinos'
+                          } de ${STROKE_LABEL[data.stroke]}${
+                            selectedEvent ? ` · ${eventLabel(selectedEvent)}` : ''
+                          }`}
                     </p>
                   </div>
                   <ChipGroup
-                    options={METRICS.map((m) => ({ value: m.key, label: m.short, title: m.label }))}
+                    options={CHART_OPTIONS}
                     value={metricKey}
                     onChange={setMetricKey}
                     ariaLabel="Métrica exibida no gráfico"
                   />
                 </div>
-                <MetricChart data={chartData} metric={metric} trend={summary?.trend ?? null} />
-                <p className="mt-3 text-xs text-muted">
-                  {summary?.trend
-                    ? 'Linha tracejada: tendência do período (regressão linear pelos mínimos quadrados).'
-                    : 'A linha de tendência aparece a partir de 3 treinos com esses filtros.'}
-                  {data.truncated &&
-                    ` Exibindo os ${data.sessions.length} treinos mais recentes de ${data.total}.`}
-                </p>
+                <MetricChart
+                  data={chartData}
+                  metric={metric}
+                  trend={forecast || isTime ? null : (summary?.trend ?? null)}
+                  lines={chartLines}
+                  futureFrom={forecast ? forecast.history.length : null}
+                  format={isTime ? formatTime : null}
+                />
+                <p className="mt-3 text-xs text-muted">{chartNote}</p>
                 <MetricLegend metric={metric} />
               </section>
+
+              {predictionEvent ? (
+                <PredictionPanel
+                  loading={predictionLoading}
+                  error={prediction.key === predictionKey ? prediction.error : ''}
+                  data={predictionData}
+                />
+              ) : (
+                <p className="mb-8 flex items-start gap-2 rounded-2xl border border-dashed border-line bg-surface px-5 py-4 text-sm text-muted">
+                  <Sparkles size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+                  Escolha uma prova no filtro acima para ver a previsão de tempo do próximo
+                  registro.
+                </p>
+              )}
 
               <section
                 aria-labelledby="recent-title"
@@ -377,7 +527,9 @@ export default function PerformancePage() {
                         <th scope="col" className="px-5 py-3 font-medium">Prova</th>
                         <th scope="col" className="px-5 py-3 font-medium">Tipo</th>
                         <th scope="col" className="px-5 py-3 font-medium">Tempo</th>
-                        <th scope="col" className="px-5 py-3 font-medium">{metric.short}</th>
+                        {!isTime && (
+                          <th scope="col" className="px-5 py-3 font-medium">{metric.short}</th>
+                        )}
                         <th scope="col" className="px-5 py-3">
                           <span className="sr-only">Ações</span>
                         </th>
@@ -395,15 +547,17 @@ export default function PerformancePage() {
                             </td>
                             <td className="px-5 py-4">{SESSION_TYPE_LABEL[s.session_type]}</td>
                             <td className="px-5 py-4 font-semibold">{formatTime(s.total_time_s)}</td>
-                            <td className="px-5 py-4">
-                              {value != null ? (
-                                `${formatDecimal(value, metric.digits)}${
-                                  metric.unit ? ` ${metric.unit}` : ''
-                                }`
-                              ) : (
-                                <Dash />
-                              )}
-                            </td>
+                            {!isTime && (
+                              <td className="px-5 py-4">
+                                {value != null ? (
+                                  `${formatDecimal(value, metric.digits)}${
+                                    metric.unit ? ` ${metric.unit}` : ''
+                                  }`
+                                ) : (
+                                  <Dash />
+                                )}
+                              </td>
+                            )}
                             <td className="px-5 py-4 text-right">
                               <Link
                                 to={`/treinos/${s.athlete_id}/${s.id}`}

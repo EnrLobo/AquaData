@@ -14,6 +14,7 @@ MIN_TRAIN = 4  # registros mínimos para ajustar o modelo na avaliação
 MIN_TEST = 2  # registros mínimos no conjunto de teste
 MIN_RECORDS = MIN_TRAIN + MIN_TEST  # 6 registros na prova para haver predição
 TEST_FRACTION = 0.2  # últimos 20% vão para o teste
+FUTURE_STEPS = 3  # registros futuros projetados no gráfico (decisão da equipe)
 
 
 class InsufficientDataError(ValueError):
@@ -22,9 +23,12 @@ class InsufficientDataError(ValueError):
 
 @dataclass(frozen=True)
 class Record:
-    """Um registro da série da prova, já em ordem cronológica."""
+    """Um registro da série da prova, já em ordem cronológica.
 
-    time_s: float
+    value é o tempo total (s) na predição do tempo, ou o valor da métrica.
+    """
+
+    value: float
     is_competition: bool
 
 
@@ -56,12 +60,22 @@ class Evaluation:
 
 
 @dataclass(frozen=True)
+class PathPoint:
+    """Valor da reta ajustada (todo o histórico) numa ordem do histórico ou futura."""
+
+    order: int
+    training_s: float | None  # reta para treino
+    competition_s: float | None  # reta para competição (None sem os dois tipos)
+
+
+@dataclass(frozen=True)
 class Prediction:
     next_order: int  # ordem do próximo registro
     training_s: float | None  # tempo previsto se o próximo registro for treino
     competition_s: float | None  # tempo previsto se for competição (None sem os dois tipos)
     model: FittedModel  # ajustado com todo o histórico
     evaluation: Evaluation  # ajustado só com o conjunto de treino
+    path: list[PathPoint]  # reta nas ordens 1..n e nos registros futuros
 
 
 def split_sizes(n: int) -> tuple[int, int]:
@@ -86,17 +100,26 @@ def _has_both_types(records: list[Record]) -> bool:
     return len(flags) == 2
 
 
-def fit(records: list[Record], first_order: int = 1) -> tuple[LinearRegression, FittedModel]:
+def fit(
+    records: list[Record], first_order: int = 1, orders: list[int] | None = None
+) -> tuple[LinearRegression, FittedModel]:
     """Ajusta a regressão linear por mínimos quadrados.
+
+    Sem `orders`, os registros recebem ordens consecutivas a partir de
+    `first_order`. Com `orders`, cada registro usa a ordem informada (série com
+    lacunas, como uma métrica que não existe em todos os registros).
 
     A variável competição só entra quando há treinos e competições no conjunto;
     com um tipo só, ela seria constante e o coeficiente não poderia ser estimado.
     """
     if len(records) < 2:
         raise InsufficientDataError("São necessários pelo menos 2 registros para ajustar a reta.")
-    orders = list(range(first_order, first_order + len(records)))
+    if orders is None:
+        orders = list(range(first_order, first_order + len(records)))
+    elif len(orders) != len(records):
+        raise ValueError("orders e records precisam ter o mesmo tamanho.")
     flags = [r.is_competition for r in records]
-    y = np.array([r.time_s for r in records], dtype=float)
+    y = np.array([r.value for r in records], dtype=float)
     use_competition = _has_both_types(records)
 
     x = _features(orders, flags, use_competition)
@@ -132,7 +155,7 @@ def evaluate(records: list[Record]) -> Evaluation:
             TestPoint(
                 order=order,
                 is_competition=record.is_competition,
-                actual_s=record.time_s,
+                actual_s=record.value,
                 predicted_s=predicted,
             )
         )
@@ -154,21 +177,63 @@ def _positive(value: float) -> float | None:
     return value if value > 0 else None
 
 
-def predict_next(records: list[Record]) -> Prediction:
-    """Avalia o modelo (treino/teste) e prevê o próximo registro com todo o histórico."""
+def _path_point(model: LinearRegression, fitted: FittedModel, order: int) -> PathPoint:
+    return PathPoint(
+        order=order,
+        training_s=_positive(_predict(model, fitted, order, competition=False)),
+        competition_s=(
+            _positive(_predict(model, fitted, order, competition=True))
+            if fitted.coef_competition is not None
+            else None
+        ),
+    )
+
+
+def predict_next(records: list[Record], steps: int = FUTURE_STEPS) -> Prediction:
+    """Avalia o modelo (treino/teste) e prevê com todo o histórico.
+
+    Devolve a previsão do próximo registro e a reta (path) no histórico e nos
+    `steps` registros seguintes, para o gráfico.
+    """
     evaluation = evaluate(records)
     model, fitted = fit(records)
-    next_order = len(records) + 1
-    training = _positive(_predict(model, fitted, next_order, competition=False))
-    competition = (
-        _positive(_predict(model, fitted, next_order, competition=True))
-        if fitted.coef_competition is not None
-        else None
-    )
+    n = len(records)
+    path = [_path_point(model, fitted, order) for order in range(1, n + steps + 1)]
+    following = path[n]  # ordem n + 1
     return Prediction(
-        next_order=next_order,
-        training_s=training,
-        competition_s=competition,
+        next_order=n + 1,
+        training_s=following.training_s,
+        competition_s=following.competition_s,
         model=fitted,
         evaluation=evaluation,
+        path=path,
     )
+
+
+@dataclass(frozen=True)
+class SeriesProjection:
+    model: FittedModel  # ajustado com todos os registros que têm valor
+    path: list[PathPoint]  # reta nas ordens 1..last_order e nos registros futuros
+
+
+def project_series(
+    records: list[Record],
+    orders: list[int],
+    last_order: int,
+    steps: int = FUTURE_STEPS,
+) -> SeriesProjection:
+    """Ajusta a reta numa série (métrica) e projeta os próximos registros.
+
+    - records/orders: só os registros que têm valor, com a ordem de cada um na
+      série completa da prova (a métrica pode faltar em alguns registros)
+    - last_order: ordem do último registro da prova; a projeção começa depois dele
+
+    Usa o mesmo mínimo de registros da predição do tempo (MIN_RECORDS).
+    """
+    if len(records) < MIN_RECORDS:
+        raise InsufficientDataError(
+            f"São necessários pelo menos {MIN_RECORDS} registros com valor; há {len(records)}."
+        )
+    model, fitted = fit(records, orders=orders)
+    path = [_path_point(model, fitted, order) for order in range(1, last_order + steps + 1)]
+    return SeriesProjection(model=fitted, path=path)

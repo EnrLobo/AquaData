@@ -67,4 +67,15 @@ export const METRICS = [
     description: 'SWOLF proporcional a 25 m: compara provas e piscinas na mesma escala' },
 ]
 
+// Tempo total da prova: não é métrica calculada, mas entra no gráfico de evolução (com a previsão)
+export const TIME_METRIC = {
+  key: 'time',
+  short: 'Tempo',
+  label: 'Tempo total',
+  unit: 's',
+  digits: 2,
+  better: 'down',
+  description: 'Tempo da prova completa, com saída e viradas',
+}
+
 export const BETTER_HINT = { up: 'Quanto maior, melhor.', down: 'Quanto menor, melhor.' }

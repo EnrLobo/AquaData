@@ -1,19 +1,21 @@
 import pytest
 
 from app.services.prediction import (
+    FUTURE_STEPS,
     MIN_RECORDS,
     InsufficientDataError,
     Record,
     evaluate,
     fit,
     predict_next,
+    project_series,
     split_sizes,
 )
 
 
 def serie(tempos, competicoes=()):
     """Monta registros; `competicoes` lista as posições (a partir de 1) que são competição."""
-    return [Record(time_s=t, is_competition=(i + 1) in competicoes) for i, t in enumerate(tempos)]
+    return [Record(value=t, is_competition=(i + 1) in competicoes) for i, t in enumerate(tempos)]
 
 
 def test_divisao_temporal_ultimos_20_por_cento():
@@ -93,3 +95,40 @@ def test_previsao_nao_positiva_e_descartada():
     # queda forte e artificial: a reta cruza o zero no próximo registro
     p = predict_next(serie([50, 40, 30, 20, 10, 0.5]))
     assert p.training_s is None
+
+
+def test_reta_no_historico_e_projecao_futura():
+    competicoes = (2, 5)
+    tempos = [62 - 0.5 * o - (2 if o in competicoes else 0) for o in range(1, 9)]
+    p = predict_next(serie(tempos, competicoes))
+    assert FUTURE_STEPS == 3
+    assert [ponto.order for ponto in p.path] == list(range(1, 12))  # 8 do histórico + 3 futuros
+    assert p.path[0].training_s == pytest.approx(61.5)  # 62 − 0,5 · 1
+    assert p.path[0].competition_s == pytest.approx(59.5)
+    assert p.path[-1].training_s == pytest.approx(56.5)  # 62 − 0,5 · 11
+    # o próximo registro da previsão é o primeiro ponto futuro da reta
+    assert p.path[8].training_s == p.training_s
+
+
+def test_projecao_so_com_treinos_nao_tem_linha_de_competicao():
+    p = predict_next(serie([60, 59.5, 59, 58.5, 58, 57.5]), steps=2)
+    assert len(p.path) == 8
+    assert all(ponto.competition_s is None for ponto in p.path)
+
+
+def test_projecao_de_metrica_com_lacunas_usa_a_ordem_real():
+    # métrica = 1,50 + 0,02 · ordem (sem ruído); o 3º e o 6º registro não têm valor
+    ordens = [1, 2, 4, 5, 7, 8]
+    registros = [Record(value=1.5 + 0.02 * o, is_competition=False) for o in ordens]
+    proj = project_series(registros, ordens, last_order=8)
+    assert proj.model.coef_order == pytest.approx(0.02)
+    assert [p.order for p in proj.path] == list(range(1, 12))  # 8 da prova + 3 futuros
+    assert proj.path[2].training_s == pytest.approx(1.56)  # ordem 3, sem valor real
+    assert proj.path[-1].training_s == pytest.approx(1.72)  # ordem 11
+    assert all(p.competition_s is None for p in proj.path)
+
+
+def test_projecao_de_metrica_exige_o_minimo_de_registros():
+    registros = [Record(value=1.5, is_competition=False) for _ in range(5)]
+    with pytest.raises(InsufficientDataError):
+        project_series(registros, [1, 2, 3, 4, 5], last_order=7)

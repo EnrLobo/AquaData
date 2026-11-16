@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 
-from app.api import athletes, auth, dashboard, health, performance, sessions
+from app.api import athletes, auth, dashboard, health, performance, prediction, sessions
 
 
 
@@ -30,3 +30,4 @@ app.include_router(sessions.router)
 app.include_router(sessions.coach_router)
 app.include_router(dashboard.router)
 app.include_router(performance.router)
+app.include_router(prediction.router)

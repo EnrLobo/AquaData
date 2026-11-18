@@ -14,7 +14,7 @@ from app.schemas.performance import (
     PerformanceSummary,
 )
 from app.schemas.session import SessionRead
-from app.services.performance import summarize
+from app.services.performance import MIN_CONCLUSIVE_POINTS, summarize
 
 router = APIRouter(prefix="/athletes/{athlete_id}/performance", tags=["Desempenho"])
 
@@ -108,4 +108,5 @@ def get_performance(
                 for key, value in summary.items()
             }
         ),
+        min_conclusive_points=MIN_CONCLUSIVE_POINTS,
     )

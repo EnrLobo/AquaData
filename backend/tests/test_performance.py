@@ -1,4 +1,10 @@
-from app.services.performance import MIN_TREND_POINTS, linear_trend, summarize, summarize_metric
+from app.services.performance import (
+    MIN_CONCLUSIVE_POINTS,
+    MIN_TREND_POINTS,
+    linear_trend,
+    summarize,
+    summarize_metric,
+)
 
 
 def test_metrica_que_melhora_subindo():
@@ -104,3 +110,23 @@ def test_summarize_cobre_as_sete_metricas():
     assert result["swolf_25"].improved is True
     assert result["cn"].improved is None
     assert summarize([]) == {key: None for key in result}
+
+
+def test_tendencia_so_e_conclusiva_com_o_minimo_de_treinos():
+    assert MIN_CONCLUSIVE_POINTS == 10  # mesmo mínimo do selo do painel (AQ-29)
+    subindo = [1.20 + 0.02 * i for i in range(10)]
+    # 9 treinos: a reta existe (linha no gráfico), mas não é conclusiva
+    s9 = summarize_metric(subindo[:9], "up")
+    assert s9.trend is not None
+    assert s9.improved is True
+    assert s9.conclusive is False
+    # 10 treinos: conclusiva
+    assert summarize_metric(subindo, "up").conclusive is True
+    # sem tendência (menos de 3 treinos) nunca é conclusiva
+    assert summarize_metric([1.4, 1.5], "up").conclusive is False
+
+
+def test_conclusiva_conta_so_os_treinos_com_valor():
+    valores = [1.20 + 0.02 * i for i in range(10)]
+    valores[4] = None  # 9 treinos com valor em 10 posições
+    assert summarize_metric(valores, "up").conclusive is False

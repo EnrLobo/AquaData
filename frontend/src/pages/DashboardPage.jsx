@@ -68,7 +68,7 @@ function signed(value, digits = 2) {
   return `${sign}${formatDecimal(Math.abs(value), digits)}`
 }
 
-function PredictionsPanel({ predictions, withoutPrediction }) {
+function PredictionsPanel({ predictions, withoutPrediction, minTrendRecords }) {
   const [event, setEvent] = useState(MAIN_EVENT)
   const [showAll, setShowAll] = useState(false)
 
@@ -114,7 +114,7 @@ function PredictionsPanel({ predictions, withoutPrediction }) {
         <p className="max-w-2xl text-sm text-muted">
           Próximo tempo previsto pela Regressão Linear do histórico de cada prova. Por padrão,
           mostra a prova principal de cada atleta (a mais registrada). Quem precisa de atenção
-          aparece primeiro.
+          aparece primeiro; quem ainda tem poucos registros para o selo, por último.
         </p>
         {predictions.length > 0 && (
           <Select
@@ -154,7 +154,7 @@ function PredictionsPanel({ predictions, withoutPrediction }) {
             </thead>
             <tbody>
               {items.map((p) => {
-                const status = STATUS[p.status]
+                const status = p.status ? STATUS[p.status] : null
                 return (
                   <tr key={`${p.athlete_id}-${eventKey(p)}`} className="border-t border-line">
                     <td className="px-5 py-3">
@@ -185,7 +185,13 @@ function PredictionsPanel({ predictions, withoutPrediction }) {
                       {p.competition_s != null ? formatTime(p.competition_s) : '—'}
                     </td>
                     <td className="px-5 py-3">
-                      <Badge tone={status.tone}>{status.label}</Badge>
+                      {status ? (
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                      ) : (
+                        <Badge tone="neutral">
+                          Poucos registros ({p.n_records} de {minTrendRecords})
+                        </Badge>
+                      )}
                       <span className="mt-1 block text-xs text-muted">
                         {signed(p.coef_order)} s por registro
                       </span>
@@ -210,6 +216,8 @@ function PredictionsPanel({ predictions, withoutPrediction }) {
       <p className="border-t border-line px-5 py-3 text-xs text-muted">
         Tendência pela inclinação da reta do modelo (variação prevista do tempo a cada novo
         registro): Estável quando fica abaixo de 0,2% do último tempo, para mais ou para menos.
+        O selo aparece a partir de {minTrendRecords} registros na prova; com menos, a reta ainda
+        varia muito de um registro para outro.
         {filtered.length > VISIBLE_ROWS && (
           <>
             {` Mostrando ${items.length} de ${filtered.length} atletas. `}
@@ -305,6 +313,7 @@ export default function DashboardPage() {
           <PredictionsPanel
             predictions={data.predictions}
             withoutPrediction={data.athletes_without_prediction}
+            minTrendRecords={data.min_trend_records}
           />
 
           <div className="mt-8 grid gap-6 lg:grid-cols-3">

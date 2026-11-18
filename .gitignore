@@ -45,3 +45,6 @@ desktop.ini
 # ---------- Logs e temporários ----------
 *.log
 *.tmp
+
+# ---------- Resultados dos estudos de simulação ----------
+*.csv

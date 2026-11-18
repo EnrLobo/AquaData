@@ -33,7 +33,7 @@ class DashboardPrediction(BaseModel):
     competition_s: float | None  # próximo registro como competição (None sem os dois tipos)
     coef_order: float  # variação prevista por registro (s)
     change_pct: float  # variação prevista por registro, em % do último tempo
-    status: TrendStatus
+    status: TrendStatus | None  # None com menos de MIN_TREND_RECORDS registros (AQ-29)
     mae_s: float  # erro médio do modelo no teste (s)
 
 
@@ -45,4 +45,5 @@ class DashboardRead(BaseModel):
     recent_sessions: list[SessionListItem]
     athletes: list[DashboardAthlete]
     predictions: list[DashboardPrediction]  # atleta × prova com previsão; Atenção primeiro
+    min_trend_records: int  # registros na prova para exibir o selo
     athletes_without_prediction: int  # atletas ativos sem prova com o mínimo de registros

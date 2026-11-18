@@ -15,13 +15,17 @@ function trendWord(trend, improved) {
   return 'estável'
 }
 
-export default function MetricTrendCard({ metric, summary, selected, onSelect }) {
+export default function MetricTrendCard({ metric, summary, minConclusive, selected, onSelect }) {
   const trend = summary?.trend ?? null
+  // seta, cor e texto de melhora/piora só com treinos suficientes (AQ-29);
+  // abaixo disso, a variação por treino aparece como informação neutra
+  const conclusive = Boolean(trend && summary.conclusive)
   const Icon = !trend || trend.slope === 0 ? Minus : trend.slope > 0 ? TrendingUp : TrendingDown
-  const tone =
-    summary?.improved === true
+  const tone = !conclusive
+    ? 'text-muted'
+    : summary.improved === true
       ? 'text-success'
-      : summary?.improved === false
+      : summary.improved === false
         ? 'text-danger'
         : 'text-muted'
 
@@ -50,12 +54,17 @@ export default function MetricTrendCard({ metric, summary, selected, onSelect })
       </p>
       {trend ? (
         <p className={`mt-2 flex flex-wrap items-center gap-1.5 text-xs font-medium ${tone}`}>
-          <Icon size={14} aria-hidden="true" />
+          {conclusive && <Icon size={14} aria-hidden="true" />}
           <span>
             {signed(trend.slope, metric.digits + 1)}
             {metric.unit ? ` ${metric.unit}` : ''} por treino
           </span>
-          <span>· {trendWord(trend, summary.improved)}</span>
+          <span>
+            ·{' '}
+            {conclusive
+              ? trendWord(trend, summary.improved)
+              : `poucos treinos para indicar tendência (${summary.count} de ${minConclusive})`}
+          </span>
         </p>
       ) : (
         <p className="mt-2 text-xs text-muted">

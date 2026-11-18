@@ -11,12 +11,13 @@ from app.schemas.dashboard import DashboardAthlete, DashboardPrediction, Dashboa
 from app.schemas.session import SessionListItem
 from app.services.prediction import (
     MIN_RECORDS,
+    MIN_TREND_RECORDS,
     InsufficientDataError,
     Record,
     TrendStatus,
-    classify_trend,
     pick_main_event,
     predict_next,
+    trend_status,
 )
 
 router = APIRouter(prefix="/dashboard", tags=["Painel"])
@@ -25,8 +26,13 @@ RECENT_DAYS = 30  # o campo sessions_last_30_days assume este valor
 RECENT_SESSIONS = 5
 OVERVIEW_ATHLETES = 6
 
-# ordem da seção: quem precisa de atenção aparece primeiro
-STATUS_ORDER = {TrendStatus.ATTENTION: 0, TrendStatus.STABLE: 1, TrendStatus.IMPROVING: 2}
+# ordem da seção: quem precisa de atenção aparece primeiro; sem selo (poucos registros) por último
+STATUS_ORDER = {
+    TrendStatus.ATTENTION: 0,
+    TrendStatus.STABLE: 1,
+    TrendStatus.IMPROVING: 2,
+    None: 3,
+}
 
 
 def athlete_predictions(db: Session, coach_id: int) -> list[DashboardPrediction]:
@@ -88,7 +94,7 @@ def _predict_event(
         return None
     last = sessions[-1]
     last_time = float(last.total_time_s)
-    change_pct, status = classify_trend(result.model.coef_order, last_time)
+    change_pct, status = trend_status(result.model.coef_order, last_time, len(sessions))
     stroke, distance_m, pool_length_m = event
     return DashboardPrediction(
         athlete_id=athlete_id,
@@ -198,6 +204,7 @@ def get_dashboard(coach: CurrentCoach, db: DbSession):
             for athlete, last_date in athlete_rows
         ],
         predictions=predictions,
+        min_trend_records=MIN_TREND_RECORDS,
         athletes_without_prediction=max(
             active_athletes - len({p.athlete_id for p in predictions}), 0
         ),

@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from statistics import fmean
 from typing import Literal
 
+from app.services.prediction import MIN_TREND_RECORDS
+
 Direction = Literal["up", "down"] | None
 
 # Sentido de melhora de cada métrica. Cadência não tem sentido fixo:
@@ -27,6 +29,9 @@ METRIC_DIGITS: dict[str, int] = {
 }
 
 MIN_TREND_POINTS = 3  # com menos treinos, a reta não indica tendência (decisão da equipe)
+# treinos com valor para a tendência ser conclusiva (seta e texto de melhora/piora);
+# o mesmo mínimo do selo do painel (AQ-29). Abaixo disso, a reta aparece só como apoio visual
+MIN_CONCLUSIVE_POINTS = MIN_TREND_RECORDS
 
 
 @dataclass(frozen=True)
@@ -52,6 +57,7 @@ class MetricSummary:
     change_pct: float | None  # variação percentual sobre o primeiro valor
     trend: Trend | None  # None com menos de MIN_TREND_POINTS treinos
     improved: bool | None  # pela inclinação da tendência; None sem tendência ou sem sentido
+    conclusive: bool  # True com tendência e pelo menos MIN_CONCLUSIVE_POINTS treinos
 
 
 def linear_trend(points: list[tuple[int, float]], digits: int = 2) -> Trend | None:
@@ -126,6 +132,7 @@ def summarize_metric(
         change_pct=None if change_pct is None else round(change_pct, 1),
         trend=trend,
         improved=improved,
+        conclusive=trend is not None and len(present) >= MIN_CONCLUSIVE_POINTS,
     )
 
 

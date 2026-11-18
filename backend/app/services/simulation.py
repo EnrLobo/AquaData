@@ -13,12 +13,19 @@ Ruído (variação típica de um mesmo atleta entre provas, em % do tempo):
 
 Os demais valores (tendência por registro, efeito competição, registro
 atípico, platô) são escolhas da equipe para os cenários, não dados de fonte.
+
+Estudo do número de registros (AQ-29): roda os cenários lineares com 6 a 20
+registros e compara três regras para o selo de tendência (só a inclinação;
+inclinação + R² mínimo; inclinação + teste estatístico da inclinação), para
+definir quantos registros o selo precisa para ser confiável.
 """
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from enum import StrEnum
 
 import numpy as np
+from scipy import stats
 
 from app.services.prediction import (
     InsufficientDataError,
@@ -230,4 +237,165 @@ def run_study(
             result.competition_s.append(prediction.model.coef_competition)
         _, status = classify_trend(prediction.model.coef_order, series.records[-1].value)
         result.statuses.append(status)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Estudo do número de registros e das regras do selo (AQ-29)
+# ---------------------------------------------------------------------------
+
+RECORD_COUNTS = (6, 8, 10, 12, 15, 20)  # números de registros comparados
+RECORD_COUNT_SCENARIOS = ("melhora", "estavel", "piora", "melhora_elite")
+R2_MIN = 0.3  # regra 2: abaixo deste R², o selo vira "Estável" (valor em estudo, sem fonte)
+SLOPE_TEST_CONFIDENCE = 0.95  # regra 3: nível de confiança do teste da inclinação
+
+
+class TrendRule(StrEnum):
+    """Regras comparadas para o selo de tendência."""
+
+    SLOPE = "inclinacao"  # regra atual do sistema: só a inclinação (faixa de ±0,2%)
+    SLOPE_R2 = "inclinacao_r2"  # inclinação + R² ≥ R2_MIN
+    SLOPE_TEST = "inclinacao_teste"  # inclinação + inclinação diferente de zero (teste t)
+
+
+TREND_RULE_LABELS = {
+    TrendRule.SLOPE: "Só inclinação",
+    TrendRule.SLOPE_R2: f"Inclinação + R² ≥ {R2_MIN:g}".replace(".", ","),
+    TrendRule.SLOPE_TEST: "Inclinação + teste",
+}
+
+
+def with_record_count(scenario: Scenario, n_records: int) -> Scenario:
+    """Mesmo cenário, com outro número de registros."""
+    return replace(scenario, n_records=n_records)
+
+
+def slope_standard_error(records: list[Record]) -> float | None:
+    """Erro padrão da inclinação (b1) na regressão do sistema (mínimos quadrados).
+
+    Usa as mesmas variáveis do modelo: ordem (1, 2, 3...) e, quando há treinos e
+    competições, a variável competição. Devolve None quando não sobram graus de
+    liberdade para estimar o erro (registros ≤ número de coeficientes).
+    """
+    n = len(records)
+    flags = [1.0 if r.is_competition else 0.0 for r in records]
+    columns = [np.ones(n), np.arange(1, n + 1, dtype=float)]
+    if len(set(flags)) == 2:
+        columns.append(np.array(flags))
+    x = np.column_stack(columns)
+    y = np.array([r.value for r in records], dtype=float)
+    dof = n - x.shape[1]
+    if dof <= 0:
+        return None
+    coef, *_ = np.linalg.lstsq(x, y, rcond=None)
+    residuals = y - x @ coef
+    variance = float(residuals @ residuals) / dof
+    cov = variance * np.linalg.inv(x.T @ x)
+    return float(math.sqrt(max(cov[1, 1], 0.0)))
+
+
+def slope_is_significant(
+    coef_order: float,
+    standard_error: float | None,
+    dof: int,
+    confidence: float = SLOPE_TEST_CONFIDENCE,
+) -> bool:
+    """Teste t bilateral: a inclinação é diferente de zero no nível de confiança dado?
+
+    Equivale a dizer que o intervalo de confiança da inclinação não contém o zero.
+    """
+    if standard_error is None or dof <= 0:
+        return False
+    if standard_error == 0:
+        return coef_order != 0  # reta perfeita: qualquer inclinação é exata
+    t_value = abs(coef_order) / standard_error
+    t_critical = float(stats.t.ppf(1 - (1 - confidence) / 2, dof))
+    return t_value >= t_critical
+
+
+def apply_rule(
+    rule: TrendRule,
+    status: TrendStatus,
+    r2: float | None,
+    significant: bool,
+) -> TrendStatus:
+    """Aplica a regra ao selo da regra atual.
+
+    As regras 2 e 3 só podem trocar "Melhorando"/"Atenção" por "Estável"
+    (nunca o contrário): elas pedem mais evidência antes de indicar mudança.
+    """
+    if rule is TrendRule.SLOPE or status is TrendStatus.STABLE:
+        return status
+    if rule is TrendRule.SLOPE_R2:
+        return status if r2 is not None and r2 >= R2_MIN else TrendStatus.STABLE
+    return status if significant else TrendStatus.STABLE
+
+
+@dataclass
+class RecordCountResult(StudyResult):
+    """Resultado de um cenário com um número de registros, com o selo de cada regra."""
+
+    statuses_by_rule: dict[TrendRule, list[TrendStatus]] = field(
+        default_factory=lambda: {rule: [] for rule in TrendRule}
+    )
+
+    def rule_accuracy(self, rule: TrendRule) -> float | None:
+        """Fração de selos corretos na regra; None se o cenário não tem selo correto."""
+        statuses = self.statuses_by_rule[rule]
+        if self.scenario.expected is None or not statuses:
+            return None
+        return statuses.count(self.scenario.expected) / len(statuses)
+
+    def rule_serious_error(self, rule: TrendRule) -> float | None:
+        """Fração de erros graves (melhora vista como Atenção ou o contrário).
+
+        None no cenário estável, em que não há um sentido oposto.
+        """
+        opposite = {
+            TrendStatus.IMPROVING: TrendStatus.ATTENTION,
+            TrendStatus.ATTENTION: TrendStatus.IMPROVING,
+        }.get(self.scenario.expected)
+        statuses = self.statuses_by_rule[rule]
+        if opposite is None or not statuses:
+            return None
+        return statuses.count(opposite) / len(statuses)
+
+
+def run_record_count_study(
+    scenario: Scenario,
+    n_records: int,
+    n_series: int,
+    seed: int,
+    base_s: float = BASE_TIME_S,
+) -> RecordCountResult:
+    """Simula o cenário com `n_records` registros e classifica cada série pelas três regras."""
+    scenario = with_record_count(scenario, n_records)
+    rng = np.random.default_rng(seed)
+    result = RecordCountResult(scenario=scenario, n_series=n_series)
+    for _ in range(n_series):
+        series = simulate_series(scenario, rng, base_s)
+        try:
+            prediction = predict_next(series.records)
+        except InsufficientDataError:
+            result.skipped += 1
+            continue
+        if prediction.training_s is None:
+            result.skipped += 1
+            continue
+        model = prediction.model
+        result.mae_s.append(prediction.evaluation.mae_s)
+        result.mape_pct.append(prediction.evaluation.mape_pct)
+        result.next_error_s.append(prediction.training_s - series.true_next_training_s)
+        result.slope_s.append(model.coef_order)
+        if model.coef_competition is not None:
+            result.competition_s.append(model.coef_competition)
+
+        _, status = classify_trend(model.coef_order, series.records[-1].value)
+        result.statuses.append(status)
+        n_params = 3 if model.coef_competition is not None else 2
+        significant = slope_is_significant(
+            model.coef_order, slope_standard_error(series.records), len(series.records) - n_params
+        )
+        for rule in TrendRule:
+            result.statuses_by_rule[rule].append(apply_rule(rule, status, model.r2, significant))
     return result

@@ -429,7 +429,9 @@ export default function PerformancePage() {
                 </h2>
                 <p className="mb-4 text-sm text-muted">
                   Valor do treino mais recente e tendência do período (regressão linear sobre
-                  os treinos, a partir de 3). Clique em uma métrica para vê-la no gráfico.
+                  os treinos). A reta aparece a partir de 3 treinos; a indicação de melhora ou
+                  piora, a partir de {data.min_conclusive_points}. Clique em uma métrica para
+                  vê-la no gráfico.
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {METRICS.map((m) => (
@@ -437,6 +439,7 @@ export default function PerformancePage() {
                       key={m.key}
                       metric={m}
                       summary={data.summary[m.key]}
+                      minConclusive={data.min_conclusive_points}
                       selected={m.key === metricKey}
                       onSelect={() => setMetricKey(m.key)}
                     />

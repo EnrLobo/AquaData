@@ -32,6 +32,7 @@ class MetricSummaryRead(BaseModel):
     change_pct: float | None
     trend: TrendRead | None
     improved: bool | None
+    conclusive: bool  # tendência com treinos suficientes para indicar melhora/piora (AQ-29)
 
 
 class PerformanceSummary(BaseModel):
@@ -54,3 +55,4 @@ class PerformanceRead(BaseModel):
     total: int  # treinos que atendem aos filtros
     truncated: bool  # True quando há mais treinos que o limite devolvido
     summary: PerformanceSummary
+    min_conclusive_points: int  # treinos para a tendência ser conclusiva

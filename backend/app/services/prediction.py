@@ -18,6 +18,9 @@ MIN_RECORDS = MIN_TRAIN + MIN_TEST  # 6 registros na prova para haver predição
 TEST_FRACTION = 0.2  # últimos 20% vão para o teste
 FUTURE_STEPS = 3  # registros futuros projetados no gráfico (decisão da equipe)
 STABLE_BAND_PCT = 0.2  # |variação prevista por registro| abaixo disso (% do último tempo) = estável
+# registros mínimos na prova para exibir o selo de tendência (decisão da equipe, AQ-29):
+# com menos, a inclinação varia demais entre séries e o selo erra muito (estudo de simulação)
+MIN_TREND_RECORDS = 10
 
 
 class InsufficientDataError(ValueError):
@@ -265,6 +268,19 @@ def classify_trend(coef_order: float, reference_s: float) -> tuple[float, TrendS
     if change_pct >= STABLE_BAND_PCT:
         return change_pct, TrendStatus.ATTENTION
     return change_pct, TrendStatus.STABLE
+
+
+def trend_status(
+    coef_order: float, reference_s: float, n_records: int
+) -> tuple[float, TrendStatus | None]:
+    """Selo do painel, só a partir de MIN_TREND_RECORDS registros na prova.
+
+    Abaixo do mínimo, a previsão continua valendo, mas o selo fica vazio (None):
+    com poucos registros, a inclinação ainda não indica a tendência com confiança.
+    Devolve (variação em % por registro, selo ou None).
+    """
+    change_pct, status = classify_trend(coef_order, reference_s)
+    return change_pct, status if n_records >= MIN_TREND_RECORDS else None
 
 
 def pick_main_event(events: dict[tuple, tuple[int, date]]) -> tuple | None:

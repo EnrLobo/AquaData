@@ -5,6 +5,7 @@ import pytest
 from app.services.prediction import (
     FUTURE_STEPS,
     MIN_RECORDS,
+    MIN_TREND_RECORDS,
     STABLE_BAND_PCT,
     InsufficientDataError,
     Record,
@@ -16,6 +17,7 @@ from app.services.prediction import (
     predict_next,
     project_series,
     split_sizes,
+    trend_status,
 )
 
 
@@ -156,6 +158,18 @@ def test_selo_usa_a_mesma_faixa_em_provas_longas():
     # −0,5 s por registro: melhora em 30 s (−1,67%), estável em 300 s (−0,17%)
     assert classify_trend(-0.5, 30)[1] is TrendStatus.IMPROVING
     assert classify_trend(-0.5, 300)[1] is TrendStatus.STABLE
+
+
+def test_selo_so_a_partir_do_minimo_de_registros():
+    assert MIN_TREND_RECORDS == 10  # decisão da equipe, com base no estudo de simulação (AQ-29)
+    # mesma inclinação clara (−1,0% por registro): sem selo com 9 registros, Melhorando com 10
+    pct, selo = trend_status(-0.3, 30, 9)
+    assert pct == pytest.approx(-1.0)  # a variação continua calculada
+    assert selo is None
+    assert trend_status(-0.3, 30, 10)[1] is TrendStatus.IMPROVING
+    assert trend_status(0.3, 30, 10)[1] is TrendStatus.ATTENTION
+    assert trend_status(0.03, 30, 12)[1] is TrendStatus.STABLE
+    assert trend_status(0.3, 30, MIN_RECORDS)[1] is None  # tem previsão, mas não tem selo
 
 
 def test_prova_principal_e_a_mais_registrada_com_previsao():

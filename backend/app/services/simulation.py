@@ -1,0 +1,233 @@
+"""Séries simuladas de tempos para testar o modelo de predição (AQ-21).
+
+Cada cenário define um comportamento "verdadeiro" do atleta (melhora, piora,
+platô...) e um ruído aleatório que imita a variação natural entre registros.
+Como o comportamento verdadeiro é conhecido, dá para medir se o modelo de
+predição (services/prediction.py) recupera a tendência, acerta o selo e com
+que erro prevê o próximo registro, antes de usá-lo com dados reais.
+
+Ruído (variação típica de um mesmo atleta entre provas, em % do tempo):
+- 1,4%: nadadores de nível nacional e juniores (Stewart; Hopkins, 2000)
+- 0,8%: nadadores de elite (Trewin; Hopkins; Pyne, 2004; coerente com Pyne;
+  Trewin; Hopkins, 2004, que tratam 0,4% como metade da variação entre provas)
+
+Os demais valores (tendência por registro, efeito competição, registro
+atípico, platô) são escolhas da equipe para os cenários, não dados de fonte.
+"""
+
+import math
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from app.services.prediction import (
+    InsufficientDataError,
+    Record,
+    TrendStatus,
+    classify_trend,
+    predict_next,
+)
+
+NOISE_CV_NATIONAL = 1.4  # % (Stewart; Hopkins, 2000)
+NOISE_CV_ELITE = 0.8  # % (Trewin; Hopkins; Pyne, 2004)
+BASE_TIME_S = 60.0  # tempo inicial padrão (ex.: 100 m livre)
+COMPETITION_EFFECT_PCT = -1.5  # competição 1,5% mais rápida que treino (valor ilustrativo)
+
+
+@dataclass(frozen=True)
+class Scenario:
+    key: str
+    label: str
+    trend_pct: float = 0.0  # variação verdadeira por registro, em % do tempo inicial
+    expected: TrendStatus | None = None  # selo correto (None quando não há um só correto)
+    noise_cv_pct: float = NOISE_CV_NATIONAL
+    n_records: int = 12
+    competition_every: int = 0  # a cada k registros, um é competição (0 = só treinos)
+    competition_pct: float = COMPETITION_EFFECT_PCT
+    outlier_at: int | None = None  # ordem do registro atípico (1 = primeiro)
+    outlier_pct: float = 0.0  # quanto o registro atípico fica acima do esperado (%)
+    plateau_pct: float = 0.0  # melhora total que se aproxima de um platô (%)
+    plateau_tau: float = 3.0  # quão rápido chega ao platô (em registros)
+
+
+SCENARIOS: list[Scenario] = [
+    Scenario("melhora", "Melhora linear", trend_pct=-0.3, expected=TrendStatus.IMPROVING),
+    Scenario("estavel", "Estável", trend_pct=0.0, expected=TrendStatus.STABLE),
+    Scenario("piora", "Piora linear", trend_pct=0.3, expected=TrendStatus.ATTENTION),
+    Scenario(
+        "melhora_elite",
+        "Melhora linear, ruído de elite",
+        trend_pct=-0.3,
+        expected=TrendStatus.IMPROVING,
+        noise_cv_pct=NOISE_CV_ELITE,
+    ),
+    Scenario(
+        "competicao",
+        "Melhora com competições",
+        trend_pct=-0.3,
+        expected=TrendStatus.IMPROVING,
+        competition_every=4,
+    ),
+    Scenario(
+        "atipico",
+        "Melhora com um registro atípico",
+        trend_pct=-0.3,
+        expected=TrendStatus.IMPROVING,
+        outlier_at=6,
+        outlier_pct=5.0,
+    ),
+    Scenario(
+        "poucos",
+        "Melhora com só 6 registros",
+        trend_pct=-0.3,
+        expected=TrendStatus.IMPROVING,
+        n_records=6,
+    ),
+    Scenario("plato", "Melhora que desacelera (platô)", plateau_pct=4.0),
+]
+
+SCENARIOS_BY_KEY = {s.key: s for s in SCENARIOS}
+
+
+def is_competition(scenario: Scenario, order: int) -> bool:
+    return scenario.competition_every > 0 and order % scenario.competition_every == 0
+
+
+def true_time(scenario: Scenario, order: int, base_s: float = BASE_TIME_S) -> float:
+    """Tempo esperado (sem ruído) do registro de ordem `order` no cenário."""
+    if scenario.plateau_pct:
+        # melhora rápida no início que vai parando: base · (1 − P · (1 − e^(−(ordem−1)/τ)))
+        gain = scenario.plateau_pct / 100 * (1 - math.exp(-(order - 1) / scenario.plateau_tau))
+        value = base_s * (1 - gain)
+    else:
+        value = base_s * (1 + scenario.trend_pct / 100 * (order - 1))
+    if is_competition(scenario, order):
+        value *= 1 + scenario.competition_pct / 100
+    return value
+
+
+@dataclass(frozen=True)
+class SimulatedSeries:
+    records: list[Record]  # tempos com ruído, em ordem cronológica
+    true_times: list[float]  # tempos esperados (sem ruído) dos mesmos registros
+    true_next_training_s: float  # tempo esperado do próximo registro como treino
+
+
+def simulate_series(
+    scenario: Scenario,
+    rng: np.random.Generator,
+    base_s: float = BASE_TIME_S,
+    noise: bool = True,
+) -> SimulatedSeries:
+    """Gera uma série do cenário. Ruído multiplicativo: tempo · (1 + ε), ε ~ N(0, CV)."""
+    records, truths = [], []
+    for order in range(1, scenario.n_records + 1):
+        expected = true_time(scenario, order, base_s)
+        value = expected
+        if noise:
+            value *= 1 + rng.normal(0, scenario.noise_cv_pct / 100)
+        if order == scenario.outlier_at:
+            value *= 1 + scenario.outlier_pct / 100
+        records.append(Record(value=round(value, 2), is_competition=is_competition(scenario, order)))
+        truths.append(expected)
+
+    next_order = scenario.n_records + 1
+    next_training = true_time(scenario, next_order, base_s)
+    if is_competition(scenario, next_order):  # o "próximo treino" nunca é competição
+        next_training /= 1 + scenario.competition_pct / 100
+    return SimulatedSeries(records=records, true_times=truths, true_next_training_s=next_training)
+
+
+def true_slope_s(scenario: Scenario, base_s: float = BASE_TIME_S) -> float | None:
+    """Inclinação verdadeira (s por registro) nos cenários lineares; None no platô."""
+    if scenario.plateau_pct:
+        return None
+    return base_s * scenario.trend_pct / 100
+
+
+@dataclass
+class StudyResult:
+    scenario: Scenario
+    n_series: int
+    mae_s: list[float] = field(default_factory=list)  # erro no teste (como no sistema)
+    mape_pct: list[float] = field(default_factory=list)
+    next_error_s: list[float] = field(default_factory=list)  # previsto − esperado, próximo treino
+    slope_s: list[float] = field(default_factory=list)  # b1 estimado
+    competition_s: list[float] = field(default_factory=list)  # b2 estimado
+    statuses: list[TrendStatus] = field(default_factory=list)
+    skipped: int = 0  # séries sem previsão (ex.: previsão ≤ 0)
+
+    @staticmethod
+    def _mean(values: list[float]) -> float | None:
+        return float(np.mean(values)) if values else None
+
+    @property
+    def mean_mae_s(self) -> float | None:
+        return self._mean(self.mae_s)
+
+    @property
+    def mean_mape_pct(self) -> float | None:
+        return self._mean(self.mape_pct)
+
+    @property
+    def next_bias_s(self) -> float | None:
+        """Viés da previsão do próximo treino: negativo = otimista (tempo previsto menor)."""
+        return self._mean(self.next_error_s)
+
+    @property
+    def next_mae_s(self) -> float | None:
+        return self._mean([abs(e) for e in self.next_error_s])
+
+    @property
+    def mean_slope_s(self) -> float | None:
+        return self._mean(self.slope_s)
+
+    @property
+    def slope_sd_s(self) -> float | None:
+        return float(np.std(self.slope_s, ddof=1)) if len(self.slope_s) > 1 else None
+
+    @property
+    def mean_competition_s(self) -> float | None:
+        return self._mean(self.competition_s)
+
+    def status_share(self, status: TrendStatus) -> float:
+        """Fração das séries que recebeu o selo `status` (0 a 1)."""
+        return self.statuses.count(status) / len(self.statuses) if self.statuses else 0.0
+
+    @property
+    def status_accuracy(self) -> float | None:
+        """Fração de selos corretos; None quando o cenário não tem selo correto definido."""
+        if self.scenario.expected is None:
+            return None
+        return self.status_share(self.scenario.expected)
+
+
+def run_study(
+    scenario: Scenario,
+    n_series: int,
+    seed: int,
+    base_s: float = BASE_TIME_S,
+    noise: bool = True,
+) -> StudyResult:
+    """Simula `n_series` séries do cenário e aplica o modelo do sistema em cada uma."""
+    rng = np.random.default_rng(seed)
+    result = StudyResult(scenario=scenario, n_series=n_series)
+    for _ in range(n_series):
+        series = simulate_series(scenario, rng, base_s, noise)
+        try:
+            prediction = predict_next(series.records)
+        except InsufficientDataError:
+            result.skipped += 1
+            continue
+        if prediction.training_s is None:
+            result.skipped += 1
+            continue
+        result.mae_s.append(prediction.evaluation.mae_s)
+        result.mape_pct.append(prediction.evaluation.mape_pct)
+        result.next_error_s.append(prediction.training_s - series.true_next_training_s)
+        result.slope_s.append(prediction.model.coef_order)
+        if prediction.model.coef_competition is not None:
+            result.competition_s.append(prediction.model.coef_competition)
+        _, status = classify_trend(prediction.model.coef_order, series.records[-1].value)
+        result.statuses.append(status)
+    return result

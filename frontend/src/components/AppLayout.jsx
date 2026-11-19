@@ -23,7 +23,7 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-line bg-surface lg:flex">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-line bg-surface lg:flex print:hidden">
         <div className="px-6 pt-8">
           <Link to="/" aria-label="aquaData, página inicial">
             <Logo className="h-9" />
@@ -75,8 +75,8 @@ export default function AppLayout() {
         </div>
       </aside>
 
-      <div className="lg:pl-64">
-        <header className="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur lg:hidden">
+      <div className="lg:pl-64 print:pl-0">
+        <header className="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur lg:hidden print:hidden">
           <div className="flex h-16 items-center justify-between px-4">
             <Link to="/" aria-label="aquaData, página inicial">
               <Logo className="h-8" />
@@ -100,7 +100,7 @@ export default function AppLayout() {
             })}
           </nav>
         </header>
-        <main className="mx-auto max-w-[1600px] px-4 py-8 sm:px-8 lg:px-12 lg:py-12">
+        <main className="mx-auto max-w-[1600px] px-4 py-8 sm:px-8 lg:px-12 lg:py-12 print:max-w-none print:p-0">
           <Outlet />
         </main>
       </div>

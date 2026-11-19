@@ -2,16 +2,20 @@ import {
   Activity,
   ArrowRight,
   CalendarRange,
+  FileDown,
   Info,
   Layers,
   Medal,
   Minus,
+  Printer,
   Timer,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import logoUrl from '../assets/logo.svg'
 import MetricChart from '../components/MetricChart'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
@@ -22,9 +26,10 @@ import Dash from '../components/ui/Dash'
 import Segmented from '../components/ui/Segmented'
 import Select from '../components/ui/Select'
 import Spinner from '../components/ui/Spinner'
+import { useAuth } from '../hooks/useAuth'
 import { listAthletes } from '../services/athletes'
-import { getReport } from '../services/report'
-import { calcAge, formatDate, formatShortDate, isoDaysAgo } from '../utils/date'
+import { getReport, getReportCsv } from '../services/report'
+import { calcAge, formatDate, formatShortDate, isoDaysAgo, todayIso } from '../utils/date'
 import {
   METRICS,
   SESSION_TYPE_LABEL,
@@ -42,6 +47,9 @@ const PERIOD_OPTIONS = [
 ]
 
 const SEX_LABEL = { M: 'Masculino', F: 'Feminino' }
+
+// tempo para os gráficos se redesenharem na largura da folha antes de abrir a impressão
+const PRINT_DELAY_MS = 400
 
 // selo da tendência prevista (mesmo do Início)
 const STATUS = {
@@ -66,6 +74,58 @@ function signed(value, digits = 2) {
 }
 
 const eventTitle = (e) => `${e.distance_m} m ${STROKE_LABEL[e.stroke]}`
+
+// nome de arquivo sem acentos nem espaços (ex.: relatorio-joao-silva-2026-11-18)
+function fileSlug(name) {
+  const plain = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  return plain || 'atleta'
+}
+
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+function formatDateTime(date) {
+  const day = date.toLocaleDateString('pt-BR')
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return `${day} às ${time}`
+}
+
+// Cabeçalho que só aparece no PDF (impressão)
+function PrintHeader({ report, coachName, periodLabel, generatedAt }) {
+  return (
+    <div className="mb-6 hidden border-b border-line pb-4 print:block">
+      <div className="flex items-center justify-between gap-4">
+        <img src={logoUrl} alt="aquaData" className="h-8 w-auto" />
+        <p className="text-right text-xs text-muted">
+          Gerado em {formatDateTime(generatedAt)}
+          <br />
+          Treinador: {coachName}
+        </p>
+      </div>
+      <h1 className="mt-4 text-2xl font-semibold">Relatório de desempenho</h1>
+      <p className="mt-1 text-sm">
+        <span className="font-semibold">{report.athlete_name}</span> · {periodLabel}
+      </p>
+      <p className="mt-3 rounded-lg border border-line px-3 py-2 text-xs text-muted">
+        As previsões são estimativas estatísticas (Regressão Linear sobre o histórico de cada
+        prova) e servem de apoio à decisão do treinador; não substituem a avaliação profissional.
+      </p>
+    </div>
+  )
+}
 
 function readPeriod(params) {
   const period = params.get('periodo') ?? ''
@@ -288,14 +348,14 @@ function EventSection({ athleteId, event, report }) {
         </div>
         <Link
           to={`/desempenho/${athleteId}?nado=${event.stroke}&prova=${event.distance_m}-${event.pool_length_m}`}
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-text hover:underline"
+          className="inline-flex items-center gap-1 text-sm font-medium text-brand-text hover:underline print:hidden"
         >
           Ver no Desempenho
           <ArrowRight size={14} aria-hidden="true" />
         </Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 print:grid-cols-2 print:break-inside-avoid">
         <TimesCard event={event} />
         <PredictionCard
           event={event}
@@ -304,7 +364,7 @@ function EventSection({ athleteId, event, report }) {
         />
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 print:break-inside-avoid">
         <h3 className="mb-2 text-sm font-semibold">Evolução do tempo</h3>
         <MetricChart
           data={chartData}
@@ -320,7 +380,7 @@ function EventSection({ athleteId, event, report }) {
         </p>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 print:break-inside-avoid">
         <h3 className="mb-1 text-sm font-semibold">Métricas no período</h3>
         <MetricsTable event={event} minConclusive={report.min_conclusive_points} />
       </div>
@@ -335,8 +395,11 @@ export default function ReportPage() {
   const period = readPeriod(params)
   const key = JSON.stringify([athleteId, period])
 
+  const { coach } = useAuth()
   const [athletes, setAthletes] = useState({ loaded: false, items: [], error: '' })
   const [result, setResult] = useState({ key: null, data: null, error: '' })
+  const [csv, setCsv] = useState({ loading: false, error: '' })
+  const [generatedAt, setGeneratedAt] = useState(() => new Date())
   const loading = result.key !== key
 
   useEffect(() => {
@@ -368,6 +431,39 @@ export default function ReportPage() {
       cancelled = true
     }
   }, [athleteId, key])
+
+  function exportPdf() {
+    const root = document.documentElement
+    const previousTitle = document.title
+    // o título vira o nome sugerido do arquivo em "Salvar como PDF"
+    document.title = `relatorio-${fileSlug(result.data.athlete_name)}-${todayIso()}`
+    flushSync(() => setGeneratedAt(new Date())) // data de geração atualizada antes da impressão
+    // a página assume a largura da folha (classe print-preparing, em index.css) e os gráficos
+    // se redesenham nesse tamanho; depois de imprimir, tudo volta ao normal
+    root.classList.add('print-preparing')
+    window.addEventListener(
+      'afterprint',
+      () => {
+        root.classList.remove('print-preparing')
+        document.title = previousTitle
+      },
+      { once: true },
+    )
+    setTimeout(() => window.print(), PRINT_DELAY_MS)
+  }
+
+  async function exportCsv() {
+    setCsv({ loading: true, error: '' })
+    try {
+      const blob = await getReportCsv(athleteId, {
+        dateFrom: period ? isoDaysAgo(Number(period)) : '',
+      })
+      saveBlob(blob, `relatorio-${fileSlug(result.data.athlete_name)}-${todayIso()}.csv`)
+      setCsv({ loading: false, error: '' })
+    } catch (err) {
+      setCsv({ loading: false, error: err.message })
+    }
+  }
 
   function changePeriod(value) {
     const next = new URLSearchParams(params)
@@ -405,36 +501,77 @@ export default function ReportPage() {
   }))
   const athleteInList = athleteOptions.some((o) => o.value === athleteId)
   const search = period ? `?periodo=${period}` : ''
+  const periodLabel = data?.first_session_date
+    ? `${formatDate(data.first_session_date)} a ${formatDate(data.last_session_date)}${
+        period
+          ? ` (${PERIOD_OPTIONS.find((o) => o.value === period).label})`
+          : ' (todo o histórico)'
+      }`
+    : 'sem registros no período'
+  const canExport = Boolean(data) && !loading && !result.error
 
   return (
     <>
-      <PageHeader
-        title="Relatórios"
-        description={
-          data
-            ? `Visão consolidada de ${data.athlete_name}${data.athlete_active ? '' : ' (inativo)'}`
-            : 'Visão consolidada por atleta'
-        }
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          {athletes.loaded && athleteInList && (
-            <Select
-              id="report-athlete"
-              label="Atleta"
-              options={athleteOptions}
-              value={athleteId}
-              onChange={(id) => navigate(`/relatorios/${id}${search}`)}
-              className="w-64"
+      {canExport && (
+        <PrintHeader
+          report={data}
+          coachName={coach.name}
+          periodLabel={periodLabel}
+          generatedAt={generatedAt}
+        />
+      )}
+      <div className="print:hidden">
+        <PageHeader
+          title="Relatórios"
+          description={
+            data
+              ? `Visão consolidada de ${data.athlete_name}${data.athlete_active ? '' : ' (inativo)'}`
+              : 'Visão consolidada por atleta'
+          }
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            {athletes.loaded && athleteInList && (
+              <Select
+                id="report-athlete"
+                label="Atleta"
+                options={athleteOptions}
+                value={athleteId}
+                onChange={(id) => navigate(`/relatorios/${id}${search}`)}
+                className="w-64"
+              />
+            )}
+            <Segmented
+              options={PERIOD_OPTIONS}
+              value={period}
+              onChange={changePeriod}
+              ariaLabel="Período do relatório"
             />
-          )}
-          <Segmented
-            options={PERIOD_OPTIONS}
-            value={period}
-            onChange={changePeriod}
-            ariaLabel="Período do relatório"
-          />
-        </div>
-      </PageHeader>
+            <button
+              type="button"
+              onClick={exportPdf}
+              disabled={!canExport}
+              className={buttonClasses('secondary')}
+            >
+              <Printer size={16} aria-hidden="true" />
+              Exportar PDF
+            </button>
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={!canExport || csv.loading}
+              className={buttonClasses('secondary')}
+            >
+              <FileDown size={16} aria-hidden="true" />
+              {csv.loading ? 'Gerando…' : 'Baixar planilha (CSV)'}
+            </button>
+          </div>
+        </PageHeader>
+        {csv.error && (
+          <div className="mb-6 max-w-xl">
+            <Alert>{csv.error}</Alert>
+          </div>
+        )}
+      </div>
 
       {loading ? (
         <Spinner />
@@ -457,17 +594,9 @@ export default function ReportPage() {
                 {calcAge(data.birth_date)} anos · {SEX_LABEL[data.sex]} ·{' '}
                 {data.athlete_active ? 'Ativo' : 'Inativo'}
               </p>
-              <p className="mt-1 text-muted">
-                Período:{' '}
-                {data.first_session_date
-                  ? `${formatDate(data.first_session_date)} a ${formatDate(data.last_session_date)}`
-                  : 'sem registros'}
-                {period
-                  ? ` (${PERIOD_OPTIONS.find((o) => o.value === period).label})`
-                  : ' (todo o histórico)'}
-              </p>
+              <p className="mt-1 text-muted">Período: {periodLabel}</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 print:grid-cols-4">
               <StatCard icon={Activity} label="Registros" value={data.totals.records} />
               <StatCard icon={Timer} label="Treinos" value={data.totals.trainings} />
               <StatCard icon={Medal} label="Competições" value={data.totals.competitions} />

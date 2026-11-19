@@ -1,7 +1,7 @@
 from dataclasses import asdict
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.api.deps import DbSession, OwnedAthlete
@@ -29,9 +29,11 @@ from app.services.prediction import (
 from app.services.report import (
     ReportRecord,
     chart_points,
+    csv_filename,
     event_sort_key,
     event_times,
     in_period,
+    report_csv,
 )
 
 router = APIRouter(prefix="/athletes/{athlete_id}/report", tags=["Relatórios"])
@@ -54,6 +56,23 @@ def _record_read(record: ReportRecord) -> ReportRecordRead:
 
 def _summary_read(summary) -> MetricSummaryRead | None:
     return None if summary is None else MetricSummaryRead(**asdict(summary))
+
+
+def _check_period(date_from: date | None, date_to: date | None) -> None:
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A data inicial não pode ser posterior à final",
+        )
+
+
+def _athlete_sessions(db, athlete_id: int) -> list[TrainingSession]:
+    """Todos os registros do atleta em ordem cronológica."""
+    return db.scalars(
+        select(TrainingSession)
+        .where(TrainingSession.athlete_id == athlete_id)
+        .order_by(TrainingSession.session_date, TrainingSession.id)
+    ).all()
 
 
 def _event_block(
@@ -158,17 +177,8 @@ def get_report(
     O período filtra os registros exibidos; previsão, selo e reta do modelo
     usam todo o histórico de cada prova.
     """
-    if date_from and date_to and date_from > date_to:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="A data inicial não pode ser posterior à final",
-        )
-
-    sessions = db.scalars(
-        select(TrainingSession)
-        .where(TrainingSession.athlete_id == athlete.id)
-        .order_by(TrainingSession.session_date, TrainingSession.id)
-    ).all()
+    _check_period(date_from, date_to)
+    sessions = _athlete_sessions(db, athlete.id)
 
     # prova → registros em ordem cronológica (todo o histórico)
     by_event: dict[tuple, list[TrainingSession]] = {}
@@ -206,4 +216,45 @@ def get_report(
         min_trend_records=MIN_TREND_RECORDS,
         min_conclusive_points=MIN_CONCLUSIVE_POINTS,
         events=events,
+    )
+
+
+@router.get("/csv", response_class=Response)
+def get_report_csv(
+    athlete: OwnedAthlete,
+    db: DbSession,
+    date_from: date | None = None,
+    date_to: date | None = None,
+):
+    """Planilha (CSV) com os registros do período e as métricas de cada um (AQ-23).
+
+    Padrão brasileiro: ";" entre colunas, vírgula decimal e UTF-8 com BOM.
+    """
+    _check_period(date_from, date_to)
+    rows = []
+    for s in _athlete_sessions(db, athlete.id):
+        if not in_period(s.session_date, date_from, date_to):
+            continue
+        metrics = SessionRead.model_validate(s).metrics.model_dump()
+        rows.append(
+            {
+                "session_date": s.session_date,
+                "session_type": getattr(s.session_type, "value", s.session_type),
+                "stroke": getattr(s.stroke, "value", s.stroke),
+                "distance_m": s.distance_m,
+                "pool_length_m": s.pool_length_m,
+                "total_time_s": float(s.total_time_s),
+                "swim_distance_m": float(s.swim_distance_m),
+                "swim_time_s": float(s.swim_time_s),
+                "stroke_count": s.stroke_count,
+                "total_cycle_count": s.total_cycle_count,
+                "notes": s.notes,
+                **metrics,
+            }
+        )
+    filename = csv_filename(athlete.name, date.today())
+    return Response(
+        content=report_csv(rows).encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

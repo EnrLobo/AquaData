@@ -4,8 +4,15 @@ O relatório reúne todas as provas do atleta. O período escolhido pelo
 treinador filtra os registros exibidos (resumo, tempos, métricas e pontos do
 gráfico); a previsão, o selo e a reta do modelo usam sempre todo o histórico
 da prova, como no Início e no Desempenho.
+
+A exportação em planilha (AQ-23) lista os registros do período com as
+métricas, no padrão brasileiro.
 """
 
+import csv
+import io
+import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 
@@ -123,3 +130,88 @@ def chart_points(
 def event_sort_key(n_period: int, last_date: date) -> tuple:
     """Ordem das provas no relatório: mais registros no período primeiro; depois a mais recente."""
     return (-n_period, -last_date.toordinal())
+
+
+# ---------------------------------------------------------------------------
+# Exportação em planilha (AQ-23)
+# ---------------------------------------------------------------------------
+
+STROKE_LABEL = {
+    "freestyle": "Livre",
+    "backstroke": "Costas",
+    "breaststroke": "Peito",
+    "butterfly": "Borboleta",
+    "medley": "Medley",
+}
+SESSION_TYPE_LABEL = {"training": "Treino", "competition": "Competição"}
+
+# (chave, título da coluna, casas decimais; None = texto ou inteiro)
+CSV_COLUMNS: list[tuple[str, str, int | None]] = [
+    ("session_date", "Data", None),
+    ("session_type", "Tipo", None),
+    ("stroke", "Nado", None),
+    ("distance_m", "Distância (m)", None),
+    ("pool_length_m", "Piscina (m)", None),
+    ("total_time_s", "Tempo (s)", 2),
+    ("total_time", "Tempo (m:ss,cc)", None),
+    ("swim_distance_m", "Trecho de nado puro (m)", 1),
+    ("swim_time_s", "Tempo do trecho (s)", 2),
+    ("stroke_count", "Ciclos no trecho", None),
+    ("total_cycle_count", "Ciclos na prova", None),
+    ("vm", "Vm (m/s)", 2),
+    ("vn", "VN (m/s)", 2),
+    ("cb", "CB (m)", 2),
+    ("cn", "Cadência (ciclos/min)", 1),
+    ("swim_index", "IN (m²/s)", 2),
+    ("swolf", "SWOLF", 1),
+    ("swolf_25", "SWOLF 25 m", 1),
+    ("notes", "Observações", None),
+]
+
+
+def format_decimal(value: float, digits: int) -> str:
+    """Número no padrão brasileiro (vírgula decimal), com casas fixas."""
+    return f"{value:.{digits}f}".replace(".", ",")
+
+
+def format_time(seconds: float) -> str:
+    """Tempo como m:ss,cc (ex.: 64,62 → 1:04,62)."""
+    cs = round(seconds * 100)
+    minutes, rest = divmod(cs, 6000)
+    return f"{minutes}:{rest // 100:02d},{rest % 100:02d}"
+
+
+def _csv_cell(key: str, value, digits: int | None) -> str:
+    if value is None:
+        return ""
+    if key == "session_date":
+        return value.strftime("%d/%m/%Y")
+    if key == "session_type":
+        return SESSION_TYPE_LABEL.get(str(value), str(value))
+    if key == "stroke":
+        return STROKE_LABEL.get(str(value), str(value))
+    if digits is not None:
+        return format_decimal(float(value), digits)
+    return str(value)
+
+
+def report_csv(rows: list[dict]) -> str:
+    """Planilha dos registros no padrão brasileiro (";" entre colunas, vírgula decimal).
+
+    Cada linha é um dict com as chaves de CSV_COLUMNS (o tempo m:ss,cc é
+    calculado aqui). Começa com o BOM do UTF-8 para o Excel reconhecer os acentos.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, delimiter=";", lineterminator="\r\n")
+    writer.writerow([title for _, title, _ in CSV_COLUMNS])
+    for row in rows:
+        row = {**row, "total_time": format_time(float(row["total_time_s"]))}
+        writer.writerow([_csv_cell(key, row.get(key), digits) for key, _, digits in CSV_COLUMNS])
+    return "\ufeff" + buffer.getvalue()
+
+
+def csv_filename(athlete_name: str, today: date) -> str:
+    """Nome do arquivo: relatorio-<nome-sem-acentos>-<AAAA-MM-DD>.csv."""
+    plain = unicodedata.normalize("NFKD", athlete_name).encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-") or "atleta"
+    return f"relatorio-{slug}-{today.isoformat()}.csv"

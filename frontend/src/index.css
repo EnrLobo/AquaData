@@ -84,3 +84,51 @@
 body {
   @apply bg-bg font-sans text-fg antialiased;
 }
+
+/* Antes de imprimir (AQ-23): a página assume a largura útil da folha A4 (210 mm − 2 × 12 mm
+   de margem), para os gráficos se redesenharem nesse tamanho antes de abrir a impressão */
+.print-preparing main {
+  width: 186mm;
+  max-width: 186mm;
+  margin: 0;
+  padding: 0;
+}
+
+/* Impressão / "Salvar como PDF" (AQ-23): sempre no tema claro, em A4 */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  :root,
+  [data-theme='dark'] {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --subtle: #f3f8fc;
+    --line: #d9e7f2;
+    --fg: #0b3a57;
+    --muted: #5f7587;
+    --accent: #359fe2;
+    --brand: #1f78b8;
+    --brand-soft: #e6f3fc;
+    --brand-text: #1f78b8;
+    --danger: #b42318;
+    --danger-soft: #fdecea;
+    --success: #067647;
+    --success-soft: #e6f6ec;
+    --canvas: #ffffff;
+    --warning: #b54708;
+    --warning-soft: #fef0c7;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .recharts-tooltip-wrapper {
+    display: none !important;
+  }
+}

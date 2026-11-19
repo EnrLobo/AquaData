@@ -56,3 +56,24 @@ export async function request(path, { method = 'GET', body, form, auth = true } 
   }
   return data
 }
+
+// Baixa um arquivo (ex.: planilha) com o token; devolve o conteúdo como Blob
+export async function requestFile(path) {
+  const headers = {}
+  const token = tokenStorage.get()
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  let response
+  try {
+    response = await fetch(`${BASE_URL}${path}`, { headers })
+  } catch {
+    throw new ApiError(0, 'Não foi possível conectar ao servidor')
+  }
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null)
+    if (response.status === 401 && token) onUnauthorized()
+    throw new ApiError(response.status, extractMessage(data, 'Erro inesperado'))
+  }
+  return response.blob()
+}

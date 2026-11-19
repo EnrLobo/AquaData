@@ -1,4 +1,4 @@
-"""Funções de apoio do relatório por atleta (AQ-22)."""
+"""Funções de apoio do relatório por atleta (AQ-22) e da exportação em planilha (AQ-23)."""
 
 from datetime import date
 
@@ -6,12 +6,17 @@ import pytest
 
 from app.services.prediction import PathPoint, Record, predict_next
 from app.services.report import (
+    CSV_COLUMNS,
     ReportRecord,
     chart_points,
+    csv_filename,
     event_sort_key,
     event_times,
     filter_period,
+    format_decimal,
+    format_time,
     in_period,
+    report_csv,
 )
 
 
@@ -98,3 +103,80 @@ def test_ordem_das_provas_no_relatorio():
     }
     ordem = sorted(provas, key=lambda k: event_sort_key(*provas[k]))
     assert ordem == ["100 livre", "50 peito", "50 livre"]  # mais registros; empate: mais recente
+
+
+# --- Exportação em planilha (AQ-23) ---
+
+
+def linha(**extra):
+    """Registro de 100 m livre em 64,62 s, com métricas (valores de exemplo)."""
+    base = {
+        "session_date": date(2026, 11, 3),
+        "session_type": "training",
+        "stroke": "freestyle",
+        "distance_m": 100,
+        "pool_length_m": 25,
+        "total_time_s": 64.62,
+        "swim_distance_m": 60.0,
+        "swim_time_s": 40.0,
+        "stroke_count": 40,
+        "total_cycle_count": 50,
+        "vm": 1.5475,
+        "vn": 1.5,
+        "cb": 1.5,
+        "cn": 60.0,
+        "swim_index": 2.25,
+        "swolf": 164.62,
+        "swolf_25": 41.155,
+        "notes": None,
+    }
+    return {**base, **extra}
+
+
+def test_numeros_e_tempo_no_padrao_brasileiro():
+    assert format_decimal(1.5475, 2) == "1,55"
+    assert format_decimal(60.0, 1) == "60,0"
+    assert format_time(64.62) == "1:04,62"
+    assert format_time(29.38) == "0:29,38"
+    assert format_time(59.999) == "1:00,00"  # arredonda para o centésimo
+
+
+def test_planilha_com_cabecalho_bom_e_separador_ponto_e_virgula():
+    texto = report_csv([linha()])
+    assert texto.startswith("\ufeff")  # BOM: o Excel reconhece os acentos
+    linhas = texto.lstrip("\ufeff").split("\r\n")
+    assert linhas[0].split(";") == [titulo for _, titulo, _ in CSV_COLUMNS]
+    celulas = linhas[1].split(";")
+    valores = dict(zip([chave for chave, _, _ in CSV_COLUMNS], celulas, strict=True))
+    assert valores["session_date"] == "03/11/2026"
+    assert valores["session_type"] == "Treino"
+    assert valores["stroke"] == "Livre"
+    assert valores["total_time_s"] == "64,62"
+    assert valores["total_time"] == "1:04,62"
+    assert valores["vm"] == "1,55"
+    assert valores["cn"] == "60,0"
+    assert valores["swolf_25"] == "41,2"
+    assert valores["notes"] == ""  # sem observação
+
+
+def test_planilha_deixa_metrica_ausente_vazia_e_protege_observacao():
+    texto = report_csv(
+        [linha(stroke="medley", swolf=None, swolf_25=None, notes="cansado; dormiu mal")]
+    )
+    dados = texto.lstrip("\ufeff").split("\r\n")[1]
+    assert ";Medley;" in dados
+    assert ';"cansado; dormiu mal"' in dados  # o ";" do texto não quebra a coluna
+    assert ";;" in dados  # SWOLF vazio no medley
+
+
+def test_planilha_sem_registros_tem_so_o_cabecalho():
+    linhas = report_csv([]).lstrip("\ufeff").split("\r\n")
+    assert linhas[0].startswith("Data;Tipo;Nado")
+    assert linhas[1:] == [""]
+
+
+def test_nome_do_arquivo_sem_acentos_nem_espacos():
+    assert csv_filename("João Henrique Souza", date(2026, 11, 18)) == (
+        "relatorio-joao-henrique-souza-2026-11-18.csv"
+    )
+    assert csv_filename("  ", date(2026, 11, 18)) == "relatorio-atleta-2026-11-18.csv"

@@ -1,0 +1,4 @@
+# Dependências só para desenvolvimento e testes (não vão para o deploy)
+-r requirements.txt
+pytest>=8.0
+httpx>=0.27

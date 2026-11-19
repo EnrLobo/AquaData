@@ -60,7 +60,16 @@ def run_migrations_online() -> None:
     In this scenario we need to create an Engine
     and associate a connection with the context.
 
+    Os testes de integração (AQ-24) passam a conexão com o banco de teste em
+    config.attributes["connection"]; no uso normal, a conexão vem do DATABASE_URL.
     """
+    external = config.attributes.get("connection")
+    if external is not None:
+        context.configure(connection=external, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

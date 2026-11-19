@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import PerformancePage from './pages/PerformancePage'
 import RegisterPage from './pages/RegisterPage'
+import ReportPage from './pages/ReportPage'
 import SessionCreatePage from './pages/SessionCreatePage'
 import SessionDetailPage from './pages/SessionDetailPage'
 import SessionEditPage from './pages/SessionEditPage'
@@ -30,6 +31,8 @@ export default function App() {
           <Route path="/treinos/:athleteId/:sessionId/editar" element={<SessionEditPage />} />
           <Route path="/desempenho" element={<PerformancePage />} />
           <Route path="/desempenho/:athleteId" element={<PerformancePage />} />
+          <Route path="/relatorios" element={<ReportPage />} />
+          <Route path="/relatorios/:athleteId" element={<ReportPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -11,7 +11,7 @@ const NAV = [
   { to: '/atletas', label: 'Atletas', icon: Users },
   { to: '/treinos', label: 'Treinos', icon: Timer },
   { to: '/desempenho', label: 'Desempenho', icon: Activity },
-  { label: 'Relatórios', icon: FileText, soon: true },
+  { to: '/relatorios', label: 'Relatórios', icon: FileText },
 ]
 
 const itemBase = 'flex h-11 items-center gap-3 rounded-xl px-4 text-sm font-medium transition-colors'

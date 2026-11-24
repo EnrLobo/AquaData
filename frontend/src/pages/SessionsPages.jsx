@@ -136,7 +136,62 @@ export default function SessionsPage() {
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
+          {/* celular e tablet em pé: cartões; telas largas: tabela (AQ-26) */}
+          <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:hidden">
+            {result.items.map((session) => {
+              const m = session.metrics ?? {}
+              return (
+                <li key={session.id}>
+                  <Link
+                    to={`/treinos/${session.athlete_id}/${session.id}`}
+                    className="block rounded-2xl border border-line bg-surface p-4 transition-colors hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-text"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span
+                        aria-hidden="true"
+                        className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand-text"
+                      >
+                        {initials(session.athlete_name)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold">{session.athlete_name}</p>
+                        <p className="text-sm text-muted">
+                          {formatRace(session)} · {formatDate(session.session_date)}
+                        </p>
+                      </div>
+                      <p className="text-lg font-semibold">{formatTime(session.total_time_s)}</p>
+                    </div>
+                    <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-line pt-3 text-sm">
+                      <div>
+                        <dt className="text-xs text-muted">SWOLF</dt>
+                        <dd className="font-medium">
+                          {m.swolf != null ? formatDecimal(m.swolf, 1) : <Dash />}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted">Braçada (CB)</dt>
+                        <dd className="font-medium">
+                          {m.cb != null ? `${formatDecimal(m.cb)} m` : <Dash />}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted">Velocidade (VN)</dt>
+                        <dd className="font-medium">
+                          {m.vn != null ? `${formatDecimal(m.vn)} m/s` : <Dash />}
+                        </dd>
+                      </div>
+                    </dl>
+                    <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-text">
+                      Ver detalhes
+                      <ArrowRight size={14} aria-hidden="true" />
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+
+          <div className="hidden overflow-x-auto rounded-2xl border border-line bg-surface lg:block">
             <table className="w-full min-w-[52rem] text-left text-sm">
               <thead className="bg-subtle text-xs uppercase tracking-wide text-muted">
                 <tr>

@@ -59,10 +59,10 @@ const STATUS = {
 }
 
 const MODEL_LINES = {
-  training: { dataKey: 'model', name: 'Modelo (treino)', color: 'var(--accent)', dashed: true },
+  training: { dataKey: 'model', name: 'Previsão para treino', color: 'var(--accent)', dashed: true },
   competition: {
     dataKey: 'modelComp',
-    name: 'Modelo (competição)',
+    name: 'Previsão para competição',
     color: 'var(--warning)',
     dashed: true,
   },
@@ -120,8 +120,8 @@ function PrintHeader({ report, coachName, periodLabel, generatedAt }) {
         <span className="font-semibold">{report.athlete_name}</span> · {periodLabel}
       </p>
       <p className="mt-3 rounded-lg border border-line px-3 py-2 text-xs text-muted">
-        As previsões são estimativas estatísticas (Regressão Linear sobre o histórico de cada
-        prova) e servem de apoio à decisão do treinador; não substituem a avaliação profissional.
+        As previsões são estimativas calculadas a partir dos tempos já registrados em cada prova
+        e servem de apoio à decisão do treinador; não substituem a avaliação profissional.
       </p>
     </div>
   )
@@ -212,8 +212,8 @@ function PredictionCard({ event, minRecords, minTrendRecords }) {
             {signed(p.coef_order)} s por registro
           </span>
         </Row>
-        <Row label="Erro médio do modelo (MAE)">
-          {p.mae_s != null ? `${formatDecimal(p.mae_s, 2)} s` : <Dash />}
+        <Row label="Erro médio das previsões">
+          {p.mae_s != null ? `cerca de ${formatDecimal(p.mae_s, 2)} s` : <Dash />}
         </Row>
       </dl>
     </Card>
@@ -229,9 +229,56 @@ function trendText(summary, minConclusive) {
   return 'estável'
 }
 
+function metricTone(s) {
+  const conclusive = Boolean(s?.trend && s.conclusive)
+  if (!conclusive) return 'text-muted'
+  if (s.improved === true) return 'text-success'
+  if (s.improved === false) return 'text-danger'
+  return 'text-muted'
+}
+
+// celular: um cartão por métrica (some na impressão, que usa a tabela) (AQ-26)
+function MetricsCards({ event, minConclusive }) {
+  return (
+    <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:hidden print:hidden">
+      {METRICS.map((m) => {
+        const s = event.metrics[m.key]
+        const unit = m.unit ? ` ${m.unit}` : ''
+        return (
+          <li key={m.key} className="rounded-xl border border-line p-3 text-sm">
+            <p className="font-medium">{m.label}</p>
+            <dl className="mt-2 grid grid-cols-3 gap-2">
+              <div>
+                <dt className="text-xs text-muted">Último</dt>
+                <dd>{s ? `${formatDecimal(s.last, m.digits)}${unit}` : <Dash />}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">Melhor</dt>
+                <dd>{s?.best != null ? `${formatDecimal(s.best, m.digits)}${unit}` : <Dash />}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">Média</dt>
+                <dd>{s ? `${formatDecimal(s.mean, m.digits)}${unit}` : <Dash />}</dd>
+              </div>
+            </dl>
+            <p className={`mt-2 text-xs ${metricTone(s)}`}>
+              {s?.trend
+                ? `${signed(s.trend.slope, m.digits + 1)}${unit} por treino · ${trendText(
+                    s,
+                    minConclusive,
+                  )}`
+                : 'Tendência: menos de 3 treinos'}
+            </p>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 function MetricsTable({ event, minConclusive }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="hidden overflow-x-auto md:block print:block">
       <table className="w-full min-w-[40rem] text-left text-sm">
         <caption className="sr-only">Métricas de {eventTitle(event)} no período</caption>
         <thead className="text-xs uppercase tracking-wide text-muted">
@@ -330,7 +377,7 @@ function EventSection({ athleteId, event, report }) {
   return (
     <section
       aria-labelledby={headingId}
-      className="mb-8 rounded-2xl border border-line bg-surface p-6"
+      className="mb-8 rounded-2xl border border-line bg-surface p-4 sm:p-6 print:p-6"
     >
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -355,7 +402,7 @@ function EventSection({ athleteId, event, report }) {
         </Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 print:grid-cols-2 print:break-inside-avoid">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 print:grid-cols-2 print:break-inside-avoid">
         <TimesCard event={event} />
         <PredictionCard
           event={event}
@@ -375,13 +422,14 @@ function EventSection({ athleteId, event, report }) {
         />
         <p className="mt-3 text-xs text-muted">
           {hasModel
-            ? 'Pontos: registros do período. Linhas tracejadas: reta da Regressão Linear ajustada com todo o histórico da prova, prolongada para os próximos registros (sem data). Quanto mais distante, maior a incerteza.'
-            : `Pontos: registros do período. A reta do modelo aparece a partir de ${report.min_records} registros desta prova.`}
+            ? 'Pontos: registros do período. Linhas tracejadas: tendência calculada com todo o histórico da prova, prolongada para os próximos registros (sem data). Quanto mais longe, menos certa a previsão.'
+            : `Pontos: registros do período. A linha de tendência aparece a partir de ${report.min_records} registros desta prova.`}
         </p>
       </div>
 
       <div className="mt-6 print:break-inside-avoid">
-        <h3 className="mb-1 text-sm font-semibold">Métricas no período</h3>
+        <h3 className="mb-2 text-sm font-semibold">Métricas no período</h3>
+        <MetricsCards event={event} minConclusive={report.min_conclusive_points} />
         <MetricsTable event={event} minConclusive={report.min_conclusive_points} />
       </div>
     </section>
@@ -529,7 +577,7 @@ export default function ReportPage() {
               : 'Visão consolidada por atleta'
           }
         >
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             {athletes.loaded && athleteInList && (
               <Select
                 id="report-athlete"
@@ -537,7 +585,7 @@ export default function ReportPage() {
                 options={athleteOptions}
                 value={athleteId}
                 onChange={(id) => navigate(`/relatorios/${id}${search}`)}
-                className="w-64"
+                className="w-full sm:w-64"
               />
             )}
             <Segmented
@@ -596,7 +644,7 @@ export default function ReportPage() {
               </p>
               <p className="mt-1 text-muted">Período: {periodLabel}</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 print:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:grid-cols-4">
               <StatCard icon={Activity} label="Registros" value={data.totals.records} />
               <StatCard icon={Timer} label="Treinos" value={data.totals.trainings} />
               <StatCard icon={Medal} label="Competições" value={data.totals.competitions} />
@@ -625,7 +673,7 @@ export default function ReportPage() {
               <p className="flex items-start gap-2 text-xs text-muted">
                 <Info size={14} aria-hidden="true" className="mt-0.5 shrink-0" />
                 O período filtra os registros, os tempos, as métricas e os pontos do gráfico. A
-                previsão, o selo de tendência e a reta do modelo usam sempre todo o histórico de
+                previsão, o selo e a linha de tendência usam sempre todo o histórico de
                 cada prova, como no Início e no Desempenho. O selo aparece a partir de{' '}
                 {data.min_trend_records} registros na prova; a indicação de melhora ou piora das
                 métricas, a partir de {data.min_conclusive_points} treinos no período.

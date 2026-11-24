@@ -61,7 +61,7 @@ export default function AthletesPage() {
   useEffect(() => {
     let cancelled = false
     const key = queryKey(status, search)
-    listAthletes({ active: activeParam(status), search, limit: LIMIT })
+    listAthletes({ active: activeParam(status), search, limit: LIMIT, summary: true })
       .then((data) => {
         if (!cancelled) setResult({ key, items: data, hasMore: data.length === LIMIT, error: '' })
       })
@@ -84,7 +84,7 @@ export default function AthletesPage() {
         ...r,
         items:
           status === 'all'
-            ? r.items.map((a) => (a.id === updated.id ? updated : a))
+            ? r.items.map((a) => (a.id === updated.id ? { ...a, ...updated, summary: a.summary } : a))
             : r.items.filter((a) => a.id !== updated.id),
       }))
     } catch (err) {
@@ -161,7 +161,7 @@ export default function AthletesPage() {
           )}
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {sorted.map((athlete) => (
             <AthleteCard
               key={athlete.id}

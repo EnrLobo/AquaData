@@ -176,7 +176,7 @@ export default function SessionDetailPage() {
         <h2 id="metrics-title" className="mb-4 text-lg font-semibold">
           Métricas
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {METRICS.map((m) => (
             <MetricCard key={m.key} metric={m} value={session.metrics?.[m.key]} />
           ))}
@@ -185,7 +185,7 @@ export default function SessionDetailPage() {
 
       <section
         aria-labelledby="chart-title"
-        className="mb-8 rounded-2xl border border-line bg-surface p-6"
+        className="mb-8 rounded-2xl border border-line bg-surface p-4 sm:p-6"
       >
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -201,6 +201,7 @@ export default function SessionDetailPage() {
             value={metricKey}
             onChange={setMetricKey}
             ariaLabel="Métrica exibida no gráfico"
+            scroll
           />
         </div>
         <MetricChart data={chartData} metric={metric} currentIndex={currentIndex} />
@@ -223,12 +224,12 @@ export default function SessionDetailPage() {
 
       <section
         aria-labelledby="data-title"
-        className="rounded-2xl border border-line bg-surface p-6"
+        className="rounded-2xl border border-line bg-surface p-4 sm:p-6"
       >
         <h2 id="data-title" className="mb-4 text-lg font-semibold">
           Dados do registro
         </h2>
-        <dl className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <Info label="Tipo">{SESSION_TYPE_LABEL[session.session_type]}</Info>
           <Info label="Data">{formatDate(session.session_date)}</Info>
           <Info label="Nado">{STROKE_LABEL[session.stroke]}</Info>

@@ -1,12 +1,32 @@
 import { Info, Sparkles } from 'lucide-react'
 import { formatDate } from '../utils/date'
 import { SESSION_TYPE_LABEL, formatDecimal, formatTime } from '../utils/session'
+import TechnicalDetails from './TechnicalDetails'
 import Alert from './ui/Alert'
 import Spinner from './ui/Spinner'
 
 function signed(value, digits = 2) {
   const sign = value > 0 ? '+' : value < 0 ? '−' : ''
   return `${sign}${formatDecimal(Math.abs(value), digits)}`
+}
+
+// frase simples para a variação do tempo a cada novo registro (b1 do modelo)
+function changeText(coef) {
+  const abs = formatDecimal(Math.abs(coef), 2)
+  if (Math.abs(coef) < 0.005) return 'O tempo está praticamente estável'
+  return coef < 0
+    ? `O tempo tende a cair ${abs} s a cada novo registro`
+    : `O tempo tende a subir ${abs} s a cada novo registro`
+}
+
+// frase simples para a diferença entre competição e treino (b2 do modelo)
+function competitionText(coef) {
+  if (coef == null) return 'Aparece quando a prova tem treinos e competições'
+  const abs = formatDecimal(Math.abs(coef), 2)
+  if (Math.abs(coef) < 0.005) return 'Competição e treino com tempos parecidos'
+  return coef < 0
+    ? `Em competição, costuma ser ${abs} s mais rápido`
+    : `Em competição, costuma ser ${abs} s mais lento`
 }
 
 function PredictionBox({ label, value, last }) {
@@ -28,11 +48,12 @@ function PredictionBox({ label, value, last }) {
 
 // Previsão do próximo registro de uma prova (Regressão Linear, AQ-18/AQ-19).
 // Os dados vêm da página (a mesma consulta alimenta o gráfico de tempos).
+// Linguagem simples na tela; termos estatísticos em "Detalhes técnicos" (AQ-26).
 export default function PredictionPanel({ loading, error, data }) {
   return (
     <section
       aria-labelledby="prediction-title"
-      className="mb-8 rounded-2xl border border-line bg-surface p-6"
+      className="mb-8 rounded-2xl border border-line bg-surface p-4 sm:p-6"
     >
       <div className="mb-4 flex items-start gap-3">
         <span
@@ -46,8 +67,8 @@ export default function PredictionPanel({ loading, error, data }) {
             Previsão do próximo registro
           </h2>
           <p className="text-sm text-muted">
-            Regressão Linear com todo o histórico desta prova (os filtros de tipo e período não se
-            aplicam aqui).
+            Calculada com todos os tempos já registrados nesta prova (os filtros de tipo e período
+            não mudam a previsão).
           </p>
         </div>
       </div>
@@ -74,7 +95,7 @@ function PredictionContent({ data }) {
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <PredictionBox label="Se for treino" value={data.training_s} last={lastTime} />
         <PredictionBox label="Se for competição" value={data.competition_s} last={lastTime} />
       </div>
@@ -84,7 +105,7 @@ function PredictionContent({ data }) {
         </p>
       )}
 
-      <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-xs text-muted">Último registro</dt>
           <dd className="mt-1 font-medium">
@@ -93,48 +114,47 @@ function PredictionContent({ data }) {
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Variação por registro</dt>
-          <dd className="mt-1 font-medium">{signed(model.coef_order, 3)} s</dd>
+          <dt className="text-xs text-muted">Tendência</dt>
+          <dd className="mt-1 font-medium">{changeText(model.coef_order)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Competição em relação ao treino</dt>
-          <dd className="mt-1 font-medium">
-            {model.coef_competition != null ? `${signed(model.coef_competition)} s` : '—'}
-          </dd>
-        </div>
-        <div>
-          <dt
-            className="text-xs text-muted"
-            title="Coeficiente de determinação: quanto a reta explica a variação dos tempos (0 a 1)"
-          >
-            Ajuste no histórico (R²)
-          </dt>
-          <dd className="mt-1 font-medium">
-            {model.r2 != null ? formatDecimal(model.r2, 2) : '—'} · {model.n} registros
-          </dd>
+          <dt className="text-xs text-muted">Competição × treino</dt>
+          <dd className="mt-1 font-medium">{competitionText(model.coef_competition)}</dd>
         </div>
       </dl>
 
       <div className="mt-6 rounded-xl border border-line">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4">
-          <h3 className="text-sm font-semibold">Qualidade da previsão</h3>
-          <p className="text-xs text-muted">
-            Treinado com os {evaluation.n_train} registros mais antigos e testado nos{' '}
-            {evaluation.n_test} mais recentes
+        <div className="px-4 pt-4">
+          <h3 className="text-sm font-semibold">Quanto confiar nesta previsão</h3>
+          <p className="mt-2 text-sm">
+            Para testar, o sistema escondeu os {evaluation.n_test} registros mais recentes e tentou
+            adivinhá-los usando só os {evaluation.n_train} anteriores. Em média, a previsão errou{' '}
+            <strong>{formatDecimal(evaluation.mae_s)} s</strong> (cerca de{' '}
+            <strong>{formatDecimal(evaluation.mape_pct, 1)}%</strong> do tempo).
           </p>
         </div>
-        <p className="px-4 pt-2 text-sm">
-          Erro médio de <strong>{formatDecimal(evaluation.mae_s)} s</strong> (MAE), ou{' '}
-          <strong>{formatDecimal(evaluation.mape_pct, 1)}%</strong> do tempo (MAPE). RMSE:{' '}
-          {formatDecimal(evaluation.rmse_s)} s.
-        </p>
-        <div className="mt-3 overflow-x-auto">
+        {/* celular: lista; a partir de sm: tabela (AQ-26) */}
+        <ul className="mt-3 divide-y divide-line border-t border-line sm:hidden">
+          {evaluation.points.map((p) => (
+            <li key={p.session_id} className="px-4 py-3 text-sm">
+              <p className="text-xs text-muted">
+                {formatDate(p.session_date)} · {p.is_competition ? 'Competição' : 'Treino'}
+              </p>
+              <p className="mt-1">
+                Real <strong>{formatTime(p.actual_s)}</strong> · previsto{' '}
+                {formatTime(p.predicted_s)} · diferença {signed(p.error_s)} s
+              </p>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[32rem] text-left text-sm">
+            <caption className="sr-only">Tempos reais e previstos nos registros de teste</caption>
             <thead className="bg-subtle text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th scope="col" className="px-4 py-2 font-medium">Data</th>
                 <th scope="col" className="px-4 py-2 font-medium">Tipo</th>
-                <th scope="col" className="px-4 py-2 font-medium">Real</th>
+                <th scope="col" className="px-4 py-2 font-medium">Tempo real</th>
                 <th scope="col" className="px-4 py-2 font-medium">Previsto</th>
                 <th scope="col" className="px-4 py-2 font-medium">Diferença</th>
               </tr>
@@ -154,9 +174,56 @@ function PredictionContent({ data }) {
         </div>
       </div>
 
+      <TechnicalDetails className="mt-4">
+        <p>
+          Regressão Linear por mínimos quadrados, ajustada com os {model.n} registros da prova:
+          tempo = b0 + b1 · ordem + b2 · competição.
+        </p>
+        <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+          <div className="flex justify-between gap-3">
+            <dt>b0 (intercepto)</dt>
+            <dd className="font-medium text-fg">{formatDecimal(model.intercept, 3)} s</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>b1 (variação por registro)</dt>
+            <dd className="font-medium text-fg">{signed(model.coef_order, 3)} s</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>b2 (competição − treino)</dt>
+            <dd className="font-medium text-fg">
+              {model.coef_competition != null ? `${signed(model.coef_competition, 3)} s` : '—'}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>R² (ajuste no histórico, 0 a 1)</dt>
+            <dd className="font-medium text-fg">
+              {model.r2 != null ? formatDecimal(model.r2, 2) : '—'}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>MAE (erro absoluto médio)</dt>
+            <dd className="font-medium text-fg">{formatDecimal(evaluation.mae_s)} s</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>MAPE (erro percentual médio)</dt>
+            <dd className="font-medium text-fg">{formatDecimal(evaluation.mape_pct, 1)}%</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>RMSE (raiz do erro quadrático médio)</dt>
+            <dd className="font-medium text-fg">{formatDecimal(evaluation.rmse_s)} s</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>Divisão treino/teste (temporal)</dt>
+            <dd className="font-medium text-fg">
+              {evaluation.n_train} / {evaluation.n_test}
+            </dd>
+          </div>
+        </dl>
+      </TechnicalDetails>
+
       <p className="mt-4 text-xs text-muted">
-        Estimativa estatística baseada só nos tempos registrados; não considera descanso, saúde ou
-        fase do treinamento. Use como apoio à decisão do treinador.
+        É uma estimativa baseada só nos tempos registrados; não considera descanso, saúde ou fase
+        do treinamento. Use como apoio à decisão do treinador.
       </p>
     </>
   )

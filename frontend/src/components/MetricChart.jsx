@@ -74,10 +74,10 @@ export default function MetricChart({
         aria-label={`Gráfico de ${metric.label} em ${data.length} pontos${
           trend ? ', com linha de tendência' : ''
         }${futureFrom != null ? ', com projeção dos próximos registros' : ''}`}
-        className="h-72 w-full"
+        className="h-60 w-full sm:h-72"
       >
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 16, right: 16, bottom: 0, left: 0 }}>
+          <LineChart data={data} margin={{ top: 16, right: 8, bottom: 0, left: 0 }}>
             <CartesianGrid stroke="var(--line)" vertical={false} />
             {futureFrom != null && futureFrom <= lastX && (
               <ReferenceArea
@@ -99,7 +99,7 @@ export default function MetricChart({
               type="number"
               domain={[0, lastX]}
               allowDecimals={false}
-              padding={{ left: 28, right: 28 }}
+              padding={{ left: 16, right: 16 }}
               interval="preserveStartEnd"
               tickFormatter={(x) => data[x]?.label ?? ''}
               tick={tick}

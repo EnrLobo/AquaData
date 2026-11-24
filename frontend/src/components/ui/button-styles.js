@@ -10,7 +10,8 @@ const variants = {
   danger: 'border border-line text-danger hover:bg-danger-soft',
 }
 
-const sizes = { md: 'h-11 px-5', sm: 'h-8 px-3', icon: 'size-9' }
+// icon: 40 px de área de toque no celular e no tablet (AQ-26)
+const sizes = { md: 'h-11 px-5', sm: 'h-9 px-3', icon: 'size-10' }
 
 export function buttonClasses(variant = 'primary', size = 'md', extra = '') {
   return [base, variants[variant], sizes[size], extra].filter(Boolean).join(' ')

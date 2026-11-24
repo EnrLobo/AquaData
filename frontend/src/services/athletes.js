@@ -1,8 +1,10 @@
 import { request } from './api'
 
-export function listAthletes({ active, search, limit = 50, offset = 0 } = {}) {
+// summary: true traz o resumo dos cartões de "Meus atletas" (último treino e selo)
+export function listAthletes({ active, search, limit = 50, offset = 0, summary = false } = {}) {
   const params = new URLSearchParams({ limit, offset })
   if (active !== undefined && active !== null) params.set('active', active)
+  if (summary) params.set('summary', 'true')
   if (search?.trim()) params.set('search', search.trim())
   return request(`/athletes?${params}`)
 }

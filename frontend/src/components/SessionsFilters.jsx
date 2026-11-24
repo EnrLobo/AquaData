@@ -17,7 +17,7 @@ export default function SessionFilters({ id, filters, onChange, onClear }) {
   return (
     <div
       id={id}
-      className="mb-6 grid gap-4 rounded-2xl border border-line bg-surface p-5 sm:grid-cols-2 lg:grid-cols-5 lg:items-end"
+      className="mb-6 grid grid-cols-1 gap-4 rounded-2xl border border-line bg-surface p-5 sm:grid-cols-2 lg:grid-cols-5 lg:items-end"
     >
       <Select
         id="f-stroke"

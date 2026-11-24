@@ -3,6 +3,8 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.athlete import Sex
+from app.models.training_session import SessionType, Stroke
+from app.services.prediction import TrendStatus
 
 
 def _clean_name(value: str | None) -> str | None:
@@ -52,3 +54,46 @@ class AthleteRead(BaseModel):
     sex: Sex
     active: bool
     created_at: datetime
+
+
+class AthleteLastSession(BaseModel):
+    """Registro mais recente do atleta, com as métricas do cartão (AQ-26)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    session_date: date
+    session_type: SessionType
+    stroke: Stroke
+    distance_m: int
+    pool_length_m: int
+    total_time_s: float
+    swolf: float | None
+    cb: float | None
+    vn: float | None
+
+
+class AthleteMainTrend(BaseModel):
+    """Selo de tendência da prova principal, com as regras do painel Início (AQ-26)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    stroke: Stroke
+    distance_m: int
+    pool_length_m: int
+    n_records: int
+    min_records: int
+    status: TrendStatus | None  # None com menos de min_records registros
+
+
+class AthleteSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    sessions_count: int
+    last_session: AthleteLastSession | None
+    main_trend: AthleteMainTrend | None  # None quando nenhuma prova tem 6 registros
+
+
+class AthleteListItem(AthleteRead):
+    """Atleta na listagem; o resumo só vem com ?summary=true (tela "Meus atletas")."""
+
+    summary: AthleteSummary | None = None

@@ -6,6 +6,7 @@ import MetricLegend from '../components/MetricLegend'
 import MetricTrendCard from '../components/MetricTrendCard'
 import PageHeader from '../components/PageHeader'
 import PredictionPanel from '../components/PredictionPanel'
+import TechnicalDetails from '../components/TechnicalDetails'
 import Alert from '../components/ui/Alert'
 import { buttonClasses } from '../components/ui/button-styles'
 import ChipGroup from '../components/ui/ChipGroup'
@@ -248,7 +249,7 @@ export default function PerformancePage() {
   // texto explicativo abaixo do gráfico
   let chartNote
   if (forecast) {
-    chartNote = `Linhas tracejadas: reta da Regressão Linear (todo o histórico da prova), prolongada para os próximos ${futureSteps} registros na área "Previsão" (sem data: o modelo usa a ordem dos registros). Quanto mais distante, maior a incerteza.`
+    chartNote = `Linhas tracejadas: tendência calculada com todo o histórico da prova e prolongada para os próximos ${futureSteps} registros, na área "Previsão" (sem data: a previsão segue a ordem dos registros, não os dias). Quanto mais longe, menos certa a previsão.`
   } else {
     const parts = []
     if (!predictionKey) {
@@ -265,7 +266,7 @@ export default function PerformancePage() {
     if (!isTime) {
       parts.push(
         summary?.trend
-          ? 'Linha tracejada: tendência do período (regressão linear pelos mínimos quadrados).'
+          ? 'Linha tracejada: tendência do período (a reta que melhor acompanha os treinos).'
           : 'A linha de tendência aparece a partir de 3 treinos com esses filtros.',
       )
     }
@@ -332,7 +333,7 @@ export default function PerformancePage() {
             : 'Evolução das métricas por atleta'
         }
       >
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {athletes.loaded && athleteInList && (
             <Select
               id="athlete"
@@ -340,7 +341,7 @@ export default function PerformancePage() {
               options={athleteOptions}
               value={athleteId}
               onChange={(id) => navigate(`/desempenho/${id}`)}
-              className="w-64"
+              className="w-full sm:w-64"
             />
           )}
           {data?.athlete_active && (
@@ -377,13 +378,14 @@ export default function PerformancePage() {
         <>
           <section
             aria-label="Filtros"
-            className="mb-8 space-y-4 rounded-2xl border border-line bg-surface p-5"
+            className="mb-8 space-y-4 rounded-2xl border border-line bg-surface p-4 sm:p-5"
           >
             <ChipGroup
               options={strokeOptions}
               value={data.stroke}
               onChange={(stroke) => updateFilters({ stroke, event: '' })}
               ariaLabel="Nado"
+              scroll
             />
             <div className="flex flex-wrap items-center gap-3">
               <Select
@@ -428,12 +430,12 @@ export default function PerformancePage() {
                   Resumo do período
                 </h2>
                 <p className="mb-4 text-sm text-muted">
-                  Valor do treino mais recente e tendência do período (regressão linear sobre
-                  os treinos). A reta aparece a partir de 3 treinos; a indicação de melhora ou
-                  piora, a partir de {data.min_conclusive_points}. Clique em uma métrica para
-                  vê-la no gráfico.
+                  Valor do treino mais recente e para onde cada métrica está indo no período. A
+                  variação aparece a partir de 3 treinos; a indicação de melhora ou piora, a
+                  partir de {data.min_conclusive_points}. Clique em uma métrica para vê-la no
+                  gráfico.
                 </p>
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {METRICS.map((m) => (
                     <MetricTrendCard
                       key={m.key}
@@ -445,14 +447,54 @@ export default function PerformancePage() {
                     />
                   ))}
                 </div>
+                <TechnicalDetails className="mt-4">
+                  <p>
+                    Tendência de cada métrica: reta de Regressão Linear por mínimos quadrados
+                    sobre a ordem dos treinos do período (inclinação = variação por treino; R² =
+                    quanto a reta explica a variação, de 0 a 1). O R² é só informativo: não entra
+                    na indicação de melhora ou piora.
+                  </p>
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="w-full min-w-[24rem] text-left">
+                      <caption className="sr-only">Inclinação e R² de cada métrica</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col" className="py-1 pr-4 font-medium">Métrica</th>
+                          <th scope="col" className="py-1 pr-4 font-medium">Inclinação</th>
+                          <th scope="col" className="py-1 pr-4 font-medium">R²</th>
+                          <th scope="col" className="py-1 font-medium">Treinos</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-fg">
+                        {METRICS.map((m) => {
+                          const s = data.summary[m.key]
+                          return (
+                            <tr key={m.key} className="border-t border-line">
+                              <td className="py-1 pr-4">{m.short}</td>
+                              <td className="py-1 pr-4">
+                                {s?.trend
+                                  ? `${formatDecimal(s.trend.slope, m.digits + 1)}${m.unit ? ` ${m.unit}` : ''}`
+                                  : '—'}
+                              </td>
+                              <td className="py-1 pr-4">
+                                {s?.trend?.r2 != null ? formatDecimal(s.trend.r2, 2) : '—'}
+                              </td>
+                              <td className="py-1">{s?.count ?? 0}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </TechnicalDetails>
               </section>
 
               <section
                 aria-labelledby="chart-title"
-                className="mb-8 rounded-2xl border border-line bg-surface p-6"
+                className="mb-8 rounded-2xl border border-line bg-surface p-4 sm:p-6"
               >
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <h2 id="chart-title" className="text-lg font-semibold">
                       Evolução: {metric.label}
                     </h2>
@@ -473,6 +515,7 @@ export default function PerformancePage() {
                     value={metricKey}
                     onChange={setMetricKey}
                     ariaLabel="Métrica exibida no gráfico"
+                    scroll
                   />
                 </div>
                 <MetricChart
@@ -505,7 +548,7 @@ export default function PerformancePage() {
                 aria-labelledby="recent-title"
                 className="overflow-hidden rounded-2xl border border-line bg-surface"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2 p-6 pb-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 p-4 pb-3 sm:p-6 sm:pb-4">
                   <h2 id="recent-title" className="text-lg font-semibold">
                     Treinos do período
                   </h2>
@@ -515,7 +558,47 @@ export default function PerformancePage() {
                     </p>
                   )}
                 </div>
-                <div className="overflow-x-auto">
+                {/* celular: cartões; a partir do tablet em pé: tabela (AQ-26) */}
+                <ul className="divide-y divide-line border-t border-line md:hidden">
+                  {recent.map((s) => {
+                    const value = s.metrics?.[metricKey]
+                    return (
+                      <li key={s.id}>
+                        <Link
+                          to={`/treinos/${s.athlete_id}/${s.id}`}
+                          className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-subtle"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium">
+                              {formatRace(s)}
+                              <span className="font-normal text-muted">
+                                {' '}
+                                · {s.pool_length_m} m · {SESSION_TYPE_LABEL[s.session_type]}
+                              </span>
+                            </p>
+                            <p className="text-xs text-muted">{formatDate(s.session_date)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold">{formatTime(s.total_time_s)}</p>
+                            {!isTime && (
+                              <p className="text-xs text-muted">
+                                {metric.short}:{' '}
+                                {value != null
+                                  ? `${formatDecimal(value, metric.digits)}${
+                                      metric.unit ? ` ${metric.unit}` : ''
+                                    }`
+                                  : '—'}
+                              </p>
+                            )}
+                          </div>
+                          <ArrowRight size={16} aria-hidden="true" className="shrink-0 text-muted" />
+                          <span className="sr-only">Ver detalhes do treino de {formatDate(s.session_date)}</span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full min-w-[48rem] text-left text-sm">
                     <thead className="bg-subtle text-xs uppercase tracking-wide text-muted">
                       <tr>

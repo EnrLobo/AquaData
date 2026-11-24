@@ -165,7 +165,7 @@ function Section({ title, description, children }) {
         <h2 className="text-base font-semibold">{title}</h2>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">{children}</div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
     </section>
   )
 }
@@ -348,7 +348,7 @@ export default function SessionForm({
                 {Array.from({ length: lengths }, (_, index) => (
                   <div
                     key={index}
-                    className="grid items-center gap-3 sm:grid-cols-[1.2fr_1fr_1fr]"
+                    className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[1.2fr_1fr_1fr]"
                   >
                     <span className="text-sm font-medium">
                       {index + 1}ª extensão{' '}
@@ -401,7 +401,7 @@ export default function SessionForm({
             </>
           )
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField
               id="swim-distance"
               label="Distância do trecho (m)"

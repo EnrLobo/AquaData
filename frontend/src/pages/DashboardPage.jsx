@@ -10,7 +10,7 @@ import Select from '../components/ui/Select'
 import Spinner from '../components/ui/Spinner'
 import { useAuth } from '../hooks/useAuth'
 import { getDashboard } from '../services/dashboard'
-import { formatDate, formatDaysAgo } from '../utils/date'
+import { formatDate } from '../utils/date'
 import { STROKE_LABEL, formatDecimal, formatRace, formatTime } from '../utils/session'
 import { initials } from '../utils/text'
 
@@ -35,18 +35,6 @@ function SeeAll({ to, children }) {
       {children}
       <ArrowRight size={14} aria-hidden="true" />
     </Link>
-  )
-}
-
-function Empty({ title, text, to, cta }) {
-  return (
-    <div className="px-5 py-10 text-center">
-      <p className="font-medium">{title}</p>
-      <p className="mt-1 text-sm text-muted">{text}</p>
-      <Link to={to} className={buttonClasses('primary', 'md', 'mt-5')}>
-        {cta}
-      </Link>
-    </div>
   )
 }
 
@@ -112,9 +100,7 @@ function PredictionsPanel({ predictions, withoutPrediction, minTrendRecords }) {
     >
       <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-4">
         <p className="max-w-2xl text-sm text-muted">
-          Próximo tempo previsto pela Regressão Linear do histórico de cada prova. Por padrão,
-          mostra a prova principal de cada atleta (a mais registrada). Quem precisa de atenção
-          aparece primeiro; quem ainda tem poucos registros para o selo, por último.
+          Próximo tempo previsto para cada atleta, a partir do histórico da prova.
         </p>
         {predictions.length > 0 && (
           <Select
@@ -137,104 +123,192 @@ function PredictionsPanel({ predictions, withoutPrediction, minTrendRecords }) {
           daí.
         </p>
       ) : (
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[52rem] text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th scope="col" className="px-5 py-3 font-medium">Atleta</th>
-                <th scope="col" className="px-5 py-3 font-medium">Prova</th>
-                <th scope="col" className="px-5 py-3 font-medium">Último</th>
-                <th scope="col" className="px-5 py-3 font-medium">Próximo treino</th>
-                <th scope="col" className="px-5 py-3 font-medium">Próxima competição</th>
-                <th scope="col" className="px-5 py-3 font-medium">Tendência</th>
-                <th scope="col" className="px-5 py-3">
-                  <span className="sr-only">Ações</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((p) => {
-                const status = p.status ? STATUS[p.status] : null
-                return (
-                  <tr key={`${p.athlete_id}-${eventKey(p)}`} className="border-t border-line">
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <span
-                          aria-hidden="true"
-                          className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand-text"
-                        >
-                          {initials(p.athlete_name)}
+        <>
+          {/* celular e tablet em pé: cartões; telas largas: tabela (AQ-26) */}
+          <ul className="my-4 grid grid-cols-1 gap-3 px-5 md:grid-cols-2 lg:hidden">
+            {items.map((p) => {
+              const status = p.status ? STATUS[p.status] : null
+              return (
+                <li
+                  key={`${p.athlete_id}-${eventKey(p)}`}
+                  className="rounded-xl border border-line bg-canvas p-4"
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand-text"
+                    >
+                      {initials(p.athlete_name)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{p.athlete_name}</p>
+                      <p className="text-xs text-muted">
+                        {formatRace(p)} · piscina de {p.pool_length_m} m
+                      </p>
+                    </div>
+                    {status ? (
+                      <Badge tone={status.tone}>{status.label}</Badge>
+                    ) : (
+                      <Badge tone="neutral">
+                        {p.n_records} de {minTrendRecords}
+                      </Badge>
+                    )}
+                  </div>
+                  <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <dt className="text-xs text-muted">Último</dt>
+                      <dd className="font-medium">{formatTime(p.last_time_s)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted">Próx. treino</dt>
+                      <dd className="font-semibold">
+                        {p.training_s != null ? formatTime(p.training_s) : '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted">Próx. competição</dt>
+                      <dd className="font-semibold">
+                        {p.competition_s != null ? formatTime(p.competition_s) : '—'}
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted">
+                    <span>
+                      {status ? '' : 'Poucos registros · '}
+                      {signed(p.coef_order)} s por registro
+                    </span>
+                    <Link
+                      to={`/desempenho/${p.athlete_id}?nado=${p.stroke}&prova=${p.distance_m}-${p.pool_length_m}`}
+                      className="inline-flex min-h-10 items-center gap-1 text-sm font-medium text-brand-text hover:underline"
+                    >
+                      Ver gráfico
+                      <ArrowRight size={14} aria-hidden="true" />
+                      <span className="sr-only"> de {p.athlete_name}</span>
+                    </Link>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+          <div className="mt-3 hidden overflow-x-auto lg:block">
+            <table className="w-full min-w-[52rem] text-left text-sm">
+              <thead className="text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th scope="col" className="px-5 py-3 font-medium">Atleta</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Prova</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Último</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Próximo treino</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Próxima competição</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Tendência</th>
+                  <th scope="col" className="px-5 py-3">
+                    <span className="sr-only">Ações</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((p) => {
+                  const status = p.status ? STATUS[p.status] : null
+                  return (
+                    <tr key={`${p.athlete_id}-${eventKey(p)}`} className="border-t border-line">
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <span
+                            aria-hidden="true"
+                            className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand-text"
+                          >
+                            {initials(p.athlete_name)}
+                          </span>
+                          <span className="font-medium">{p.athlete_name}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3">
+                        {formatRace(p)}
+                        <span className="text-muted"> · {p.pool_length_m} m</span>
+                      </td>
+                      <td className="px-5 py-3">
+                        {formatTime(p.last_time_s)}
+                        <span className="block text-xs text-muted">
+                          {formatDate(p.last_session_date)}
                         </span>
-                        <span className="font-medium">{p.athlete_name}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3">
-                      {formatRace(p)}
-                      <span className="text-muted"> · {p.pool_length_m} m</span>
-                    </td>
-                    <td className="px-5 py-3">
-                      {formatTime(p.last_time_s)}
-                      <span className="block text-xs text-muted">
-                        {formatDate(p.last_session_date)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 font-semibold">
-                      {p.training_s != null ? formatTime(p.training_s) : '—'}
-                    </td>
-                    <td className="px-5 py-3 font-semibold">
-                      {p.competition_s != null ? formatTime(p.competition_s) : '—'}
-                    </td>
-                    <td className="px-5 py-3">
-                      {status ? (
-                        <Badge tone={status.tone}>{status.label}</Badge>
-                      ) : (
-                        <Badge tone="neutral">
-                          Poucos registros ({p.n_records} de {minTrendRecords})
-                        </Badge>
-                      )}
-                      <span className="mt-1 block text-xs text-muted">
-                        {signed(p.coef_order)} s por registro
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <Link
-                        to={`/desempenho/${p.athlete_id}?nado=${p.stroke}&prova=${p.distance_m}-${p.pool_length_m}`}
-                        className="inline-flex items-center gap-1 font-medium text-brand-text hover:underline"
-                      >
-                        Ver gráfico
-                        <ArrowRight size={14} aria-hidden="true" />
-                        <span className="sr-only"> de {p.athlete_name}</span>
-                      </Link>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="px-5 py-3 font-semibold">
+                        {p.training_s != null ? formatTime(p.training_s) : '—'}
+                      </td>
+                      <td className="px-5 py-3 font-semibold">
+                        {p.competition_s != null ? formatTime(p.competition_s) : '—'}
+                      </td>
+                      <td className="px-5 py-3">
+                        {status ? (
+                          <Badge tone={status.tone}>{status.label}</Badge>
+                        ) : (
+                          <Badge tone="neutral">
+                            Poucos registros ({p.n_records} de {minTrendRecords})
+                          </Badge>
+                        )}
+                        <span className="mt-1 block text-xs text-muted">
+                          {signed(p.coef_order)} s por registro
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <Link
+                          to={`/desempenho/${p.athlete_id}?nado=${p.stroke}&prova=${p.distance_m}-${p.pool_length_m}`}
+                          className="inline-flex items-center gap-1 font-medium text-brand-text hover:underline"
+                        >
+                          Ver gráfico
+                          <ArrowRight size={14} aria-hidden="true" />
+                          <span className="sr-only"> de {p.athlete_name}</span>
+                        </Link>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {filtered.length > VISIBLE_ROWS && (
+        <div className="border-t border-line px-5 py-3 text-xs text-muted">
+          {`Mostrando ${items.length} de ${filtered.length} atletas. `}
+          <button
+            type="button"
+            onClick={() => setShowAll((value) => !value)}
+            className="font-medium text-brand-text hover:underline"
+          >
+            {showAll ? 'Mostrar menos' : 'Mostrar todos'}
+          </button>
         </div>
       )}
-      <p className="border-t border-line px-5 py-3 text-xs text-muted">
-        Tendência pela inclinação da reta do modelo (variação prevista do tempo a cada novo
-        registro): Estável quando fica abaixo de 0,2% do último tempo, para mais ou para menos.
-        O selo aparece a partir de {minTrendRecords} registros na prova; com menos, a reta ainda
-        varia muito de um registro para outro.
-        {filtered.length > VISIBLE_ROWS && (
-          <>
-            {` Mostrando ${items.length} de ${filtered.length} atletas. `}
-            <button
-              type="button"
-              onClick={() => setShowAll((value) => !value)}
-              className="font-medium text-brand-text hover:underline"
-            >
-              {showAll ? 'Mostrar menos' : 'Mostrar todos'}
-            </button>
-          </>
-        )}
-        {withoutPrediction > 0 &&
-          ` ${withoutPrediction} ${
-            withoutPrediction === 1 ? 'atleta ativo ainda não tem' : 'atletas ativos ainda não têm'
-          } 6 registros na mesma prova.`}
-      </p>
+      <details className="group border-t border-line px-5 py-3 text-xs text-muted">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-brand-text hover:underline">
+          <Info size={14} aria-hidden="true" />
+          Como ler esta tabela
+        </summary>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>
+            Por padrão, aparece a prova principal de cada atleta (a que tem mais registros). Use o
+            seletor para ver outra prova.
+          </li>
+          <li>
+            A tendência indica se o tempo vem caindo (Melhorando), subindo (Atenção) ou quase
+            parado (Estável: variação menor que 0,2% do último tempo a cada registro).
+          </li>
+          <li>
+            O selo aparece a partir de {minTrendRecords} registros na prova; com menos, o
+            resultado ainda muda muito de um registro para outro. Quem precisa de atenção aparece
+            primeiro.
+          </li>
+          {withoutPrediction > 0 && (
+            <li>
+              {withoutPrediction}{' '}
+              {withoutPrediction === 1
+                ? 'atleta ativo ainda não tem'
+                : 'atletas ativos ainda não têm'}{' '}
+              6 registros na mesma prova, o mínimo para a previsão.
+            </li>
+          )}
+        </ul>
+      </details>
     </Panel>
   )
 }
@@ -264,9 +338,9 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title={`Olá, ${firstName}`}
-        description="Visão geral dos seus atletas e dos últimos treinos."
+        description="Resumo dos seus atletas e das previsões de tempo."
       >
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link to="/atletas/novo" className={buttonClasses('secondary')}>
             Novo atleta
           </Link>
@@ -283,7 +357,7 @@ export default function DashboardPage() {
         <Alert>{error}</Alert>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               icon={Users}
               label="Atletas ativos"
@@ -315,108 +389,6 @@ export default function DashboardPage() {
             withoutPrediction={data.athletes_without_prediction}
             minTrendRecords={data.min_trend_records}
           />
-
-          <div className="mt-8 grid gap-6 lg:grid-cols-3">
-            <Panel
-              title="Últimos treinos"
-              className="lg:col-span-2"
-              action={<SeeAll to="/treinos">Ver todos</SeeAll>}
-            >
-              {data.recent_sessions.length === 0 ? (
-                <Empty
-                  title="Nenhum treino registrado ainda"
-                  text="Registre o primeiro treino para acompanhar a evolução."
-                  to="/treinos/novo"
-                  cta="Registrar treino"
-                />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[34rem] text-left text-sm">
-                    <thead className="text-xs uppercase tracking-wide text-muted">
-                      <tr>
-                        <th scope="col" className="px-5 py-3 font-medium">Atleta</th>
-                        <th scope="col" className="px-5 py-3 font-medium">Data</th>
-                        <th scope="col" className="px-5 py-3 font-medium">Prova</th>
-                        <th scope="col" className="px-5 py-3 font-medium">Tempo</th>
-                        <th scope="col" className="px-5 py-3">
-                          <span className="sr-only">Ações</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.recent_sessions.map((session) => (
-                        <tr key={session.id} className="border-t border-line">
-                          <td className="px-5 py-3">
-                            <div className="flex items-center gap-3">
-                              <span
-                                aria-hidden="true"
-                                className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand-text"
-                              >
-                                {initials(session.athlete_name)}
-                              </span>
-                              <span className="font-medium">{session.athlete_name}</span>
-                            </div>
-                          </td>
-                          <td className="px-5 py-3 text-muted">
-                            {formatDate(session.session_date)}
-                          </td>
-                          <td className="px-5 py-3">{formatRace(session)}</td>
-                          <td className="px-5 py-3 font-semibold">
-                            {formatTime(session.total_time_s)}
-                          </td>
-                          <td className="px-5 py-3 text-right">
-                            <Link
-                              to={`/treinos/${session.athlete_id}/${session.id}`}
-                              className="inline-flex items-center gap-1 font-medium text-brand-text hover:underline"
-                            >
-                              Ver detalhes
-                              <ArrowRight size={14} aria-hidden="true" />
-                              <span className="sr-only">
-                                {' '}
-                                de {session.athlete_name} em {formatDate(session.session_date)}
-                              </span>
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Panel>
-
-            <Panel title="Atletas" action={<SeeAll to="/atletas">Ver todos</SeeAll>}>
-              {data.athletes.length === 0 ? (
-                <Empty
-                  title="Nenhum atleta ativo"
-                  text="Cadastre um atleta para começar."
-                  to="/atletas/novo"
-                  cta="Cadastrar atleta"
-                />
-              ) : (
-                <ul className="divide-y divide-line">
-                  {data.athletes.map((athlete) => (
-                    <li key={athlete.id} className="flex items-center gap-3 px-5 py-3">
-                      <span
-                        aria-hidden="true"
-                        className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand-text"
-                      >
-                        {initials(athlete.name)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{athlete.name}</p>
-                        <p className="text-xs text-muted">
-                          {athlete.last_session_date
-                            ? `Último treino ${formatDaysAgo(athlete.last_session_date)} (${formatDate(athlete.last_session_date)})`
-                            : 'Sem treinos registrados'}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Panel>
-          </div>
         </>
       )}
     </>

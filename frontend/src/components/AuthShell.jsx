@@ -3,7 +3,7 @@ import ThemeToggle from './ThemeToggle'
 
 export default function AuthShell({ children }) {
   return (
-    <div className="grid min-h-screen gap-6 p-4 sm:p-6 lg:grid-cols-2">
+    <div className="grid min-h-screen grid-cols-1 gap-6-6 p-4 sm:p-6 lg:grid-cols-2">
       <LoginShowcase />
       <div className="relative flex flex-col items-center justify-center py-10">
         <div className="absolute right-0 top-0">

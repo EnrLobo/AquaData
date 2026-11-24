@@ -17,7 +17,7 @@ export default function MetricLegend({ metric }) {
         <summary className="cursor-pointer font-medium text-brand-text hover:underline">
           O que significa cada sigla
         </summary>
-        <dl className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+        <dl className="mt-3 grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
           {METRICS.map((m) => (
             <div key={m.key}>
               <dt className="font-medium">

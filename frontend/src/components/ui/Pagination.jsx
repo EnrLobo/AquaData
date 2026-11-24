@@ -7,7 +7,7 @@ function pageWindow(page, total, size = 5) {
 }
 
 const box =
-  'grid size-9 place-items-center rounded-lg border text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-text disabled:pointer-events-none disabled:opacity-40'
+  'grid size-10 place-items-center rounded-lg border text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-text disabled:pointer-events-none disabled:opacity-40'
 
 export default function Pagination({ page, totalPages, onChange }) {
   if (totalPages <= 1) return null

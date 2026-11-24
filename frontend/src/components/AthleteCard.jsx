@@ -1,35 +1,69 @@
 import { Activity, Pencil, UserCheck, UserX } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { calcAge, formatDate, formatDaysAgo } from '../utils/date'
+import { formatDecimal, formatRace } from '../utils/session'
 import { initials } from '../utils/text'
-import { calcAge } from '../utils/date'
 import Badge from './ui/Badge'
 import Button from './ui/Button'
 import { buttonClasses } from './ui/button-styles'
 
 const SEX_LABEL = { M: 'Masculino', F: 'Feminino' }
 
-function Metric({ label, value }) {
+// mesmo selo do painel Início (inclinação da reta do tempo da prova principal)
+const STATUS = {
+  improving: { label: 'Melhorando', tone: 'success' },
+  stable: { label: 'Estável', tone: 'neutral' },
+  attention: { label: 'Atenção', tone: 'warning' },
+}
+
+function Metric({ label, value, digits, unit }) {
   return (
     <div>
       <dt className="text-xs text-muted">{label}</dt>
-      <dd className="mt-1 text-xl font-semibold text-muted">
-        {value ?? (
+      <dd className="mt-1 text-xl font-semibold">
+        {value != null ? (
           <>
+            {formatDecimal(value, digits)}
+            {unit && <span className="ml-1 text-xs font-medium text-muted">{unit}</span>}
+          </>
+        ) : (
+          <span className="text-muted">
             <span aria-hidden="true">—</span>
             <span className="sr-only">sem dados</span>
-          </>
+          </span>
         )}
       </dd>
     </div>
   )
 }
 
+function Trend({ trend }) {
+  if (!trend) {
+    return <p className="text-xs text-muted">Tendência a partir de 6 registros na mesma prova</p>
+  }
+  const status = trend.status ? STATUS[trend.status] : null
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+      <span>Tendência em {formatRace(trend)}:</span>
+      {status ? (
+        <Badge tone={status.tone}>{status.label}</Badge>
+      ) : (
+        <Badge tone="neutral">
+          Poucos registros ({trend.n_records} de {trend.min_records})
+        </Badge>
+      )}
+    </div>
+  )
+}
+
 export default function AthleteCard({ athlete, busy, onToggleActive }) {
   const action = athlete.active ? 'Inativar' : 'Reativar'
+  const summary = athlete.summary
+  const last = summary?.last_session ?? null
 
   return (
     <article
-      className={`rounded-2xl border border-line bg-surface p-6 transition-shadow hover:shadow-md ${
+      className={`flex flex-col rounded-2xl border border-line bg-surface p-6 transition-shadow hover:shadow-md ${
         athlete.active ? '' : 'opacity-80'
       }`}
     >
@@ -51,14 +85,30 @@ export default function AthleteCard({ athlete, busy, onToggleActive }) {
         </Badge>
       </header>
 
-      <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-line pt-5">
-        <Metric label="SWOLF" />
-        <Metric label="Braçada (CB)" />
-        <Metric label="Velocidade (VN)" />
-      </dl>
+      <div className="mt-5 border-t border-line pt-5">
+        <p className="mb-3 text-xs font-medium text-muted">
+          {last
+            ? `Último treino: ${formatRace(last)}, ${formatDaysAgo(last.session_date)} (${formatDate(last.session_date)})`
+            : 'Sem treinos registrados'}
+        </p>
+        <dl className="grid grid-cols-3 gap-3">
+          <Metric label="SWOLF" value={last?.swolf} digits={1} />
+          <Metric label="Braçada (CB)" value={last?.cb} digits={2} unit="m" />
+          <Metric label="Velocidade (VN)" value={last?.vn} digits={2} unit="m/s" />
+        </dl>
+        {last && (
+          <div className="mt-4">
+            <Trend trend={summary.main_trend} />
+          </div>
+        )}
+      </div>
 
-      <footer className="mt-5 flex items-center justify-between gap-2 text-sm">
-        <span className="text-muted">Sem treinos registrados</span>
+      <footer className="mt-auto flex items-center justify-between gap-2 pt-5 text-sm">
+        <span className="text-muted">
+          {summary
+            ? `${summary.sessions_count} ${summary.sessions_count === 1 ? 'registro' : 'registros'}`
+            : ''}
+        </span>
         <div className="flex gap-1">
           <Link
             to={`/desempenho/${athlete.id}`}

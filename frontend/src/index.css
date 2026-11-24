@@ -85,6 +85,30 @@ body {
   @apply bg-bg font-sans text-fg antialiased;
 }
 
+/* Sem cursor de texto piscando fora dos campos editáveis (AQ-26): com a "navegação por
+   cursor" do navegador ligada (tecla F7), clicar em títulos e botões mostrava o cursor */
+body *:not(input):not(textarea):not(select):not([contenteditable='true']) {
+  caret-color: transparent;
+}
+
+/* Celular (AQ-26): campos com 16 px para o iPhone não aplicar zoom ao tocar no campo */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Listas que rolam para o lado no celular (chips de métricas, menu): sem barra de rolagem */
+.scroll-x-hidden {
+  scrollbar-width: none;
+}
+
+.scroll-x-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 /* Antes de imprimir (AQ-23): a página assume a largura útil da folha A4 (210 mm − 2 × 12 mm
    de margem), para os gráficos se redesenharem nesse tamanho antes de abrir a impressão */
 .print-preparing main {

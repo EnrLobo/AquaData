@@ -1,9 +1,11 @@
 import { Pause, Play } from 'lucide-react'
 import { useState } from 'react'
+import loginPhoto from '../assets/login-natacao.webp'
 import { LOGIN_HIGHLIGHTS } from '../content/loginHighlights'
 import { prefersReducedMotion } from '../utils/motion'
-import LoginVideo from './LoginVideo'
 
+// Painel da tela de entrada: foto de fundo e destaques do sistema que se alternam
+// sozinhos (com botão de pausa, já que o conteúdo muda sem ação do usuário).
 export default function LoginShowcase() {
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(prefersReducedMotion)
@@ -15,7 +17,12 @@ export default function LoginShowcase() {
       aria-label="Destaques do aquaData"
       className="relative hidden overflow-hidden rounded-3xl bg-[#071a29] lg:block"
     >
-      <LoginVideo paused={paused} />
+      <img
+        src={loginPhoto}
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 size-full object-cover"
+      />
       <div
         aria-hidden="true"
         className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent"
@@ -24,7 +31,7 @@ export default function LoginShowcase() {
       <button
         type="button"
         onClick={() => setPaused((p) => !p)}
-        aria-label={paused ? 'Retomar vídeo e destaques' : 'Pausar vídeo e destaques'}
+        aria-label={paused ? 'Retomar destaques' : 'Pausar destaques'}
         className="absolute right-4 top-4 grid size-10 place-items-center rounded-full bg-black/40 text-white backdrop-blur transition-colors hover:bg-black/60 focus-visible:outline-2 focus-visible:outline-white"
       >
         {paused ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}

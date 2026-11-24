@@ -88,11 +88,16 @@ export default function AppLayout() {
               </Button>
             </div>
           </div>
-          <nav aria-label="Principal" className="flex gap-1 overflow-x-auto px-4 pb-2">
+          <nav aria-label="Principal" className="scroll-x-hidden flex gap-1 overflow-x-auto px-4 pb-2">
             {NAV.filter((item) => !item.soon).map((item) => {
               const Icon = item.icon
               return (
-                <NavLink key={item.label} to={item.to} end={item.end} className={linkClass}>
+                <NavLink
+                  key={item.label}
+                  to={item.to}
+                  end={item.end}
+                  className={(state) => `${linkClass(state)} shrink-0`}
+                >
                   <Icon size={18} aria-hidden="true" />
                   {item.label}
                 </NavLink>
@@ -100,7 +105,7 @@ export default function AppLayout() {
             })}
           </nav>
         </header>
-        <main className="mx-auto max-w-[1600px] px-4 py-8 sm:px-8 lg:px-12 lg:py-12 print:max-w-none print:p-0">
+        <main className="mx-auto max-w-[1600px] px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-8 sm:py-8 lg:px-12 lg:py-12 print:max-w-none print:p-0">
           <Outlet />
         </main>
       </div>

@@ -48,7 +48,7 @@ Este documento resume as rotas e as regras que o Swagger não mostra.
 | Método | Rota | Descrição |
 |---|---|---|
 | POST | `/athletes` | Cadastra atleta: `name`, `birth_date` (não futura), `sex` |
-| GET | `/athletes` | Lista em ordem alfabética. Filtros: `active` (true/false), `search` (parte do nome, sem diferenciar maiúsculas), `limit` (até 100, padrão 50), `offset` |
+| GET | `/athletes` | Lista em ordem alfabética. Filtros: `active` (true/false), `search` (parte do nome, sem diferenciar maiúsculas), `limit` (até 100, padrão 50), `offset`. Com `summary=true` (tela "Meus atletas"), cada atleta traz `summary`: quantidade de registros, o registro mais recente com SWOLF, CB e VN, e o selo de tendência da prova principal (mesmas regras do painel); sem o parâmetro, `summary` vem nulo |
 | GET | `/athletes/{id}` | Um atleta |
 | PATCH | `/athletes/{id}` | Altera um ou mais campos, inclusive `active`. Corpo vazio ou com nulos → 422 |
 

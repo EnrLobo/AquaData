@@ -75,12 +75,6 @@ export default function MetricTrendCard({ metric, summary, minConclusive, select
         <p className="mt-1 text-xs text-muted">
           {summary.best != null ? `Melhor: ${formatDecimal(summary.best, metric.digits)} · ` : ''}
           Média: {formatDecimal(summary.mean, metric.digits)}
-          {trend?.r2 != null && (
-            <span title="Coeficiente de determinação: quanto a reta explica a variação (0 a 1)">
-              {' '}
-              · R² {formatDecimal(trend.r2, 2)}
-            </span>
-          )}
         </p>
       )}
     </button>

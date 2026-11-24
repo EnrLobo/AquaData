@@ -44,7 +44,7 @@ Sem `TEST_DATABASE_URL`, os testes de integração aparecem como *skipped* (pula
 
 ## 3. Roteiro de ponta a ponta (manual)
 
-Executar pelo navegador, primeiro no ambiente local e, depois, em produção (Vercel + Railway). Para cada passo, marcar o resultado e guardar um print em `docs/img/` (nome sugerido: `e2e-E01.png`, `e2e-E02.png`...).
+Executar pelo navegador, primeiro no ambiente local e, depois, em produção (Vercel + Render + Neon). Para cada passo, marcar o resultado e guardar um print em `docs/img/` (nome sugerido: `e2e-E01.png`, `e2e-E02.png`...).
 
 **Dados usados:**
 - local: os atletas simulados (`python -m scripts.seed_simulated --email SEU_EMAIL`) e um atleta cadastrado à mão;

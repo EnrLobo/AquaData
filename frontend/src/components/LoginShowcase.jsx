@@ -1,11 +1,12 @@
 import { Pause, Play } from 'lucide-react'
 import { useState } from 'react'
-import loginPhoto from '../assets/login-natacao.webp'
-import { LOGIN_HIGHLIGHTS } from '../content/loginHighlights'
+import { LOGIN_HIGHLIGHTS, LOGIN_PHOTO_CREDIT } from '../content/loginHighlights'
 import { prefersReducedMotion } from '../utils/motion'
 
-// Painel da tela de entrada: foto de fundo e destaques do sistema que se alternam
-// sozinhos (com botão de pausa, já que o conteúdo muda sem ação do usuário).
+// Painel da tela de entrada: destaques do sistema que se alternam sozinhos, cada um com a
+// sua foto de fundo (com botão de pausa, já que o conteúdo muda sem ação do usuário).
+// As fotos ficam empilhadas e trocam por esmaecimento; com "reduzir movimento" ativado no
+// sistema, a troca é imediata e os destaques começam pausados (AQ-26).
 export default function LoginShowcase() {
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(prefersReducedMotion)
@@ -17,16 +18,32 @@ export default function LoginShowcase() {
       aria-label="Destaques do aquaData"
       className="relative hidden overflow-hidden rounded-3xl bg-[#071a29] lg:block"
     >
-      <img
-        src={loginPhoto}
-        alt=""
-        aria-hidden="true"
-        className="absolute inset-0 size-full object-cover"
-      />
+      {LOGIN_HIGHLIGHTS.map((item, index) => (
+        <img
+          key={item.id}
+          src={item.image}
+          alt=""
+          aria-hidden="true"
+          decoding="async"
+          style={{ objectPosition: item.imagePosition }}
+          className={`absolute inset-0 size-full object-cover transition-opacity duration-700 motion-reduce:transition-none ${
+            index === active ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+      ))}
       <div
         aria-hidden="true"
         className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent"
       />
+
+      <a
+        href={LOGIN_PHOTO_CREDIT.href}
+        target="_blank"
+        rel="noreferrer"
+        className="absolute left-4 top-4 rounded-full bg-black/40 px-3 py-1 text-[11px] text-white/80 backdrop-blur hover:text-white focus-visible:outline-2 focus-visible:outline-white"
+      >
+        {LOGIN_PHOTO_CREDIT.label}
+      </a>
 
       <button
         type="button"
